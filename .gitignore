@@ -1,0 +1,42 @@
+# ============================================================================
+# .gitignore — FSM Project
+# ============================================================================
+
+# Environment files
+.env
+.env.prod
+.env.local
+
+# Docker volumes
+pgdata/
+letsencrypt/
+authelia-data/
+authelia-logs/
+
+# PostgreSQL
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (Postman scripts)
+node_modules/
+
+# Go binaries
+*.exe
+*.test
+*.out
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+*.tmp
