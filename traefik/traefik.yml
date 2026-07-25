@@ -1,0 +1,20 @@
+# ============================================================================
+# traefik.yml — Traefik v3 static configuration
+# Dev mode: dashboard on :8080, HTTP on :80
+# ============================================================================
+
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+  web:
+    address: ":8088"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: DEBUG
