@@ -1,0 +1,10 @@
+# ============================================================================
+# industry-packs/gas/docker-compose.prod.yml
+# Override for docker-compose.prod.yml to load Gas industry pack
+# Usage: docker compose -f docker-compose.prod.yml -f industry-packs/gas/docker-compose.prod.yml --env-file .env.prod up -d
+# ============================================================================
+
+services:
+  postgres:
+    volumes:
+      - ./industry-packs/gas/initdb.d:/docker-entrypoint-initdb.d:ro
