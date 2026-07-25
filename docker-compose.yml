@@ -1,0 +1,138 @@
+# ============================================================================
+# docker-compose.yml — FSM dev stack
+# Uso: docker compose up -d
+# Con industry pack: docker compose -f docker-compose.yml -f industry-packs/gas/docker-compose.override.yml up -d
+# ============================================================================
+services:
+  postgres:
+    profiles: ["dev"]
+    image: postgis/postgis:16-3.5
+    container_name: fsm-postgres
+    environment:
+      POSTGRES_DB: fsm_fsm
+      POSTGRES_USER: fsm_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FSM_API_PASSWORD: ${FSM_API_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fsm_admin -d fsm_fsm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  postgrest:
+    profiles: ["dev"]
+    image: postgrest/postgrest:v12.2.3
+    container_name: fsm-postgrest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://fsm_api:${FSM_API_PASSWORD}@postgres:5432/fsm_fsm
+      PGRST_DB_SCHEMAS: core,partners,customers,inventory,operations,planning,notifications,geocoding,shared,domain_gas
+      PGRST_DB_ANON_ROLE: fsm_api
+    command: ["/bin/postgrest", "/etc/postgrest.conf"]
+    volumes:
+      - ./postgrest.conf:/etc/postgrest.conf:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  traefik:
+    profiles: ["dev"]
+    image: traefik:v3.0
+    container_name: fsm-traefik
+    depends_on:
+      - postgrest
+      - jwt-validator
+      - authelia
+    ports:
+      - "8088:8088"
+      - "8080:8080"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  glauth:
+    profiles: ["dev"]
+    image: glauth/glauth:latest
+    container_name: fsm-glauth
+    volumes:
+      - ./glauth/config.toml:/etc/glauth/config.toml:ro
+    ports:
+      - "389:389"
+    networks:
+      - fsm-internal
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b dc=workflows,dc=cl -D cn=authelia,dc=workflows,dc=cl -w ${AUTHELIA_LDAP_PASSWORD} '(objectclass=*)' 2>/dev/null | grep -q 'numEntries'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  authelia:
+    profiles: ["dev"]
+    image: authelia/authelia:4.38
+    container_name: fsm-authelia
+    depends_on:
+      glauth:
+        condition: service_healthy
+    volumes:
+      - ./authelia/config:/config
+      - authelia-data:/var/lib/authelia
+      - authelia-logs:/var/log/authelia
+    environment:
+      TZ: America/Santiago
+      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      AUTHELIA_SESSION_DOMAIN: ${AUTHELIA_SESSION_DOMAIN:-localhost}
+      AUTHELIA_AUTHELIA_URL: ${AUTHELIA_AUTHELIA_URL:-http://localhost:9091}
+      AUTHELIA_DEFAULT_REDIRECT: ${AUTHELIA_DEFAULT_REDIRECT:-http://localhost:8088}
+      AUTHELIA_APP_DOMAIN: ${AUTHELIA_APP_DOMAIN:-localhost}
+      AUTHELIA_LDAP_PASSWORD: ${AUTHELIA_LDAP_PASSWORD}
+    ports:
+      - "9091:9091"
+    networks:
+      - fsm-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9091/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  jwt-validator:
+    profiles: ["dev"]
+    build:
+      context: ./traefik/jwt-validator
+    container_name: fsm-jwt-validator
+    environment:
+      JWT_SECRET: ${PGRST_JWT_SECRET}
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  authelia-data:
+    driver: local
+  authelia-logs:
+    driver: local
+
+networks:
+  fsm-internal:
+    driver: bridge
