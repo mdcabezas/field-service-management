@@ -1,0 +1,128 @@
+# ============================================================================
+# docker-compose.prod.yml — FSM production stack
+# Uso: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# ============================================================================
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.5
+    container_name: fsm-postgres
+    environment:
+      POSTGRES_DB: fsm_fsm
+      POSTGRES_USER: fsm_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FSM_API_PASSWORD: ${FSM_API_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fsm_admin -d fsm_fsm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: fsm-postgrest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://fsm_api:${FSM_API_PASSWORD}@postgres:5432/fsm_fsm
+      PGRST_DB_SCHEMAS: core,partners,customers,inventory,operations,planning,notifications,geocoding,shared,domain_gas
+      PGRST_DB_ANON_ROLE: fsm_api
+      PGRST_OPENAPI_SERVER_PROXY_URI: https://app.workflows.cl
+    command: ["/bin/postgrest", "/etc/postgrest.conf"]
+    volumes:
+      - ./postgrest.conf:/etc/postgrest.conf:ro
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  traefik:
+    image: traefik:v3.0
+    container_name: fsm-traefik
+    depends_on:
+      - postgrest
+      - jwt-validator
+      - authelia
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/traefik.prod.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.prod.yml:/etc/traefik/dynamic.yml:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+  glauth:
+    image: glauth/glauth:latest
+    container_name: fsm-glauth
+    volumes:
+      - ./glauth/config.toml:/etc/glauth/config.toml:ro
+    networks:
+      - fsm-internal
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -b dc=workflows,dc=cl -D cn=authelia,dc=workflows,dc=cl -w ${AUTHELIA_LDAP_PASSWORD} '(objectclass=*)' 2>/dev/null | grep -q 'numEntries'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  authelia:
+    image: authelia/authelia:4.38
+    container_name: fsm-authelia
+    depends_on:
+      glauth:
+        condition: service_healthy
+    volumes:
+      - ./authelia/config:/config
+      - authelia-data:/var/lib/authelia
+      - authelia-logs:/var/log/authelia
+    environment:
+      TZ: America/Santiago
+      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      AUTHELIA_SESSION_DOMAIN: ${AUTHELIA_SESSION_DOMAIN}
+      AUTHELIA_AUTHELIA_URL: ${AUTHELIA_AUTHELIA_URL}
+      AUTHELIA_DEFAULT_REDIRECT: ${AUTHELIA_DEFAULT_REDIRECT}
+      AUTHELIA_APP_DOMAIN: ${AUTHELIA_APP_DOMAIN:-app.workflows.cl}
+      AUTHELIA_LDAP_PASSWORD: ${AUTHELIA_LDAP_PASSWORD}
+    networks:
+      - fsm-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9091/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  jwt-validator:
+    build:
+      context: ./traefik/jwt-validator
+    container_name: fsm-jwt-validator
+    environment:
+      JWT_SECRET: ${PGRST_JWT_SECRET}
+    networks:
+      - fsm-internal
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  letsencrypt:
+    driver: local
+  authelia-data:
+    driver: local
+  authelia-logs:
+    driver: local
+
+networks:
+  fsm-internal:
+    driver: bridge
