@@ -12,53 +12,15 @@ CREATE SCHEMA IF NOT EXISTS domain_gas;
 -- LOOKUP TABLES (replace enums)
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS domain_gas.visit_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  active BOOLEAN DEFAULT true
-);
+-- Industry-agnostic catalogs live in core: visit_types, photo_findings,
+-- pre_visit_results, rejection_reasons (operations.*) and
+-- partner_service_types (partners.*). The gas pack seeds its codes there.
 
 CREATE TABLE IF NOT EXISTS domain_gas.measurement_types (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   default_unit TEXT,
-  active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS domain_gas.photo_findings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS domain_gas.vehicle_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS domain_gas.partner_service_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS domain_gas.pre_visit_results (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE IF NOT EXISTS domain_gas.route_types (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
   active BOOLEAN DEFAULT true
 );
 
@@ -85,19 +47,6 @@ CREATE TABLE IF NOT EXISTS domain_gas.certifications (
 );
 
 -- ============================================================================
--- REJECTION REASONS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS domain_gas.rejection_reasons (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  category shared.rejection_category NOT NULL,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- ============================================================================
 -- PROPERTY ASSETS (poles, meter, etc.)
 -- ============================================================================
 
@@ -114,7 +63,7 @@ CREATE TABLE IF NOT EXISTS domain_gas.property_assets (
 -- ADD FOREIGN KEYS TO CORE TABLES (idempotent)
 -- ============================================================================
 
--- partners.partner_agreements.service_type → domain_gas.partner_service_types
+-- partners.partner_agreements.service_type → partners.partner_service_types (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -122,11 +71,11 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE partners.partner_agreements
       ADD CONSTRAINT fk_partner_agreements_service_type
-      FOREIGN KEY (service_type) REFERENCES domain_gas.partner_service_types(id);
+      FOREIGN KEY (service_type) REFERENCES partners.partner_service_types(id);
   END IF;
 END $$;
 
--- partners.slas.work_type → domain_gas.visit_types
+-- partners.slas.work_type → operations.visit_types (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -134,7 +83,7 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE partners.slas
       ADD CONSTRAINT fk_slas_work_type
-      FOREIGN KEY (work_type) REFERENCES domain_gas.visit_types(id);
+      FOREIGN KEY (work_type) REFERENCES operations.visit_types(id);
   END IF;
 END $$;
 
@@ -162,19 +111,9 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- inventory.vehicles.type → domain_gas.vehicle_types
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints
-    WHERE constraint_name = 'fk_vehicles_type'
-  ) THEN
-    ALTER TABLE inventory.vehicles
-      ADD CONSTRAINT fk_vehicles_type
-      FOREIGN KEY (type) REFERENCES domain_gas.vehicle_types(id);
-  END IF;
-END $$;
+-- inventory.vehicles.type → FK already defined in core (inventory.vehicle_types)
 
--- inventory.checklist_templates.work_type → domain_gas.visit_types
+-- inventory.checklist_templates.work_type → operations.visit_types (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -182,11 +121,11 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE inventory.checklist_templates
       ADD CONSTRAINT fk_checklist_templates_work_type
-      FOREIGN KEY (work_type) REFERENCES domain_gas.visit_types(id);
+      FOREIGN KEY (work_type) REFERENCES operations.visit_types(id);
   END IF;
 END $$;
 
--- planning.routes.type → domain_gas.route_types
+-- planning.routes.type → planning.route_types (core catalog, seeded generically; gas seeds its specific codes)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -194,11 +133,11 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE planning.routes
       ADD CONSTRAINT fk_routes_type
-      FOREIGN KEY (type) REFERENCES domain_gas.route_types(id);
+      FOREIGN KEY (type) REFERENCES planning.route_types(id);
   END IF;
 END $$;
 
--- operations.visits.type → domain_gas.visit_types
+-- operations.visits.type → operations.visit_types (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -206,11 +145,11 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE operations.visits
       ADD CONSTRAINT fk_visits_type
-      FOREIGN KEY (type) REFERENCES domain_gas.visit_types(id);
+      FOREIGN KEY (type) REFERENCES operations.visit_types(id);
   END IF;
 END $$;
 
--- operations.visits.result → domain_gas.pre_visit_results
+-- operations.visits.result → operations.pre_visit_results (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -218,11 +157,11 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE operations.visits
       ADD CONSTRAINT fk_visits_result
-      FOREIGN KEY (result) REFERENCES domain_gas.pre_visit_results(id);
+      FOREIGN KEY (result) REFERENCES operations.pre_visit_results(id);
   END IF;
 END $$;
 
--- operations.visits.rejection_reason_id → domain_gas.rejection_reasons
+-- operations.visits.rejection_reason_id → operations.rejection_reasons (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -230,7 +169,7 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE operations.visits
       ADD CONSTRAINT fk_visits_rejection_reason_id
-      FOREIGN KEY (rejection_reason_id) REFERENCES domain_gas.rejection_reasons(id);
+      FOREIGN KEY (rejection_reason_id) REFERENCES operations.rejection_reasons(id);
   END IF;
 END $$;
 
@@ -246,7 +185,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- operations.visit_photos.finding_type → domain_gas.photo_findings
+-- operations.visit_photos.finding_type → operations.photo_findings (core catalog)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.table_constraints
@@ -254,6 +193,6 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE operations.visit_photos
       ADD CONSTRAINT fk_visit_photos_finding_type
-      FOREIGN KEY (finding_type) REFERENCES domain_gas.photo_findings(id);
+      FOREIGN KEY (finding_type) REFERENCES operations.photo_findings(id);
   END IF;
 END $$;

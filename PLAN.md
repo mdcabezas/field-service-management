@@ -2,14 +2,13 @@
 
 ## 0. Estado general
 
-- **Stack**: PostgreSQL 16 + PostGIS 3.5 + PostgREST v12.2.3 + Docker Compose dev
+- **Stack**: PostgreSQL 16 + PostGIS 3.5 + Go Backend (Gin + pgx) + Docker Compose dev
 - **Modo**: Single-tenant (sin RLS, sin company_id)
-- **Arquitectura**: Core FSM genérico + Industry Packs (gas, electricity, HVAC, plumbing, etc.)
+- **Arquitectura**: Core FSM generico + Industry Packs (gas, electricity, HVAC, plumbing, etc.)
 - **Esquemas Core**: 9 bounded contexts, ~49 tablas, 27 enums nativos PostgreSQL
-- **Industry Packs**: Cargados dinámicamente, añaden lookup tables, FKs, seeds específicos
-- **Arquitectura PostgREST**: JWT firmado por backend Go; fsm_api consume vía PostgREST.
-- **Auth**: GLAuth (LDAP) → Authelia (MFA) + Backend Go (JWT) → Traefik → PostgREST
-- **Status actual**: Core genérico completo. Gas Industry Pack creado. GLAuth + Authelia + Traefik + JWT auth funcionando. Pendiente: F6+ (backend).
+- **Industry Packs**: Cargados dinamicamente, anaden lookup tables, FKs, seeds especificos
+- **Auth**: GLAuth (LDAP) → Go Backend (JWT) → PostgreSQL directo via pgx
+- **Status actual**: Core generico completo. Gas Industry Pack creado. Go Backend completo con handlers, services, repos. Auth, RBAC, rate limiting, security headers implementados.
 
 ---
 
@@ -42,16 +41,13 @@
 
 | Archivo | Contenido | Estado |
 |---------|-----------|--------|
-| `docker-compose.yml` | postgres + postgrest + traefik + jwt-validator + authelia + glauth, red interna `fsm-internal`, healthcheck | ✅ |
-| `postgrest.conf` | db-schemas (9 core), db-anon-role=fsm_api, db-pre-request=public.set_user_context | ✅ |
+| `docker-compose.yml` | postgres + traefik + go-backend + glauth, red interna `fsm-internal`, healthcheck | ✅ |
 | `traefik/traefik.yml` | Traefik v3 static config (entrypoint :8088, dashboard :8080, file provider) | ✅ |
-| `traefik/dynamic.yml` | JWT forwardAuth middleware + authelia middleware + strip-auth-header + PostgREST router | ✅ |
-| `traefik/jwt-validator/` | Minimal Go JWT validator (HMAC-SHA256, stdlib only, ~10MB image) | ✅ |
+| `traefik/dynamic.yml` | Go Backend routes (api, auth, health) | ✅ |
 | `glauth/config.toml` | GLAuth LDAP config (4 users, 4 groups, TOML) | ✅ |
-| `authelia/config/configuration.yml` | Authelia config (LDAP backend via GLAuth, TOTP, session, access control) | ✅ |
-| `.env.example` | POSTGRES_PASSWORD, FSM_API_PASSWORD, PGRST_JWT_SECRET, AUTHELIA_* | ✅ |
-| `.gitignore` | Excluye `.env` | ✅ |
-| `scripts/reload-postgrest-cache.sh` | Script para recargar schema cache después de cambiar FKs | ✅ |
+| `backend/` | Go Backend (Gin + pgx): auth + CRUD + business logic | ✅ |
+| `.env.example` | POSTGRES_PASSWORD, JWT_SECRET, LDAP_SERVICE_PASSWORD | ✅ |
+| `.gitignore` | Excluye `.env`, `backend/server` | ✅ |
 
 ### ✅ F3 Documentación
 
@@ -82,13 +78,11 @@
 2. `partner_agreement_forms` referenciaba `shared.report_templates` antes de su creación → schemas shared y geocoding movidos antes de core/partners/customers
 3. D2 CHECK constraint usaba subquery (inválido en PostgreSQL) → reemplazado por trigger function
 4. `04-seeds.sql` INSERTaba `es_global` en `tech_roles` → columna eliminada
-5. `postgrest.conf` usaba key obsoleta `role-claim-key` → migrada a `jwt-role-claim-key = "$$.role"`
-6. `inventory.tools.estado` era TEXT → migrado a enum `shared.tool_status`
-7. `04-seeds.sql` INSERT tech_roles tenía 3 valores en 2 columnas → corregido
-8. Archivo deprecado multi-tenant `sql/schema.sql` → eliminado
-9. **F5.1 Industry Pack Architecture** — Core genérico + Industry Packs cargados dinámicamente
-10. **F5.2 English Naming Refactor** — Nombres de enums, columnas, seeds y comentarios en inglés (estándar industria FSM)
-11. **F5.3 Traefik + JWT Authentication** — API Gateway con validación JWT via forwardAuth middleware
+5. `inventory.tools.estado` era TEXT → migrado a enum `shared.tool_status`
+6. `04-seeds.sql` INSERT tech_roles tenía 3 valores en 2 columnas → corregido
+7. **F5.1 Industry Pack Architecture** — Core genérico + Industry Packs cargados dinámicamente
+8. **F5.2 English Naming Refactor** — Nombres de enums, columnas, seeds y comentarios en inglés (estándar industria FSM)
+9. **F5.3 Traefik + JWT Authentication** — API Gateway con Go Backend (auth + proxy)
 
 ---
 
@@ -136,34 +130,29 @@ industry-packs/gas/
 
 | Tabla | Propósito |
 |-------|-----------|
-| `visit_types` | pre_visit, installation, maintenance, emergency, certification, repair, diagnosis |
 | `measurement_types` | tightness, pressure, co, draft, leak, ph, temperature, other |
-| `photo_findings` | normal, leak, damage, emergency, incomplete, other |
-| `vehicle_types` | truck, crane, van, crane_truck, other |
-| `partner_service_types` | installation, maintenance, certification, emergency, other |
-| `pre_visit_results` | approved, rejected, conditional |
-| `route_types` | meter_reading, letter_delivery, tank_collection, tank_delivery, mass_inspection, mixed |
 | `property_types` | tank, meter, indoor_piping, appliance, other (con columns_config JSONB) |
 | `certifications` | 9 certs SEC Chile (CL1, CL2, CL3, GLP, TC1, TC2, TC6, GREEN SEAL, DS66) |
-| `rejection_reasons` | 17 razones en 4 categorías (logistics, regulatory, customer, operational) |
 | `property_assets` | Atributos extra por propiedad (poles, meter, etc.) |
+
+Los catálogos universales (`visit_types`, `photo_findings`, `pre_visit_results`, `rejection_reasons`, `partner_service_types`) se movieron al core (`operations.*` / `partners.*`, migración `sql/20260813_catalogs_core.sql`); el pack gas siembra sus códigos en esas tablas core.
 
 ### FKs añadidas a Core (12)
 
 | Core Table | Column | Referencia |
 |------------|--------|------------|
-| `partners.partner_agreements` | `service_type` | `domain_gas.partner_service_types` |
-| `partners.slas` | `work_type` | `domain_gas.visit_types` |
+| `partners.partner_agreements` | `service_type` | `partners.partner_service_types` *(core catalog)* |
+| `partners.slas` | `work_type` | `operations.visit_types` *(core catalog)* |
 | `customers.properties` | `type` | `domain_gas.property_types` |
 | `customers.tech_certifications` | `cert_id` | `domain_gas.certifications` |
-| `inventory.vehicles` | `type` | `domain_gas.vehicle_types` |
-| `inventory.checklist_templates` | `work_type` | `domain_gas.visit_types` |
-| `planning.routes` | `type` | `domain_gas.route_types` |
-| `operations.visits` | `type` | `domain_gas.visit_types` |
-| `operations.visits` | `result` | `domain_gas.pre_visit_results` |
-| `operations.visits` | `rejection_reason_id` | `domain_gas.rejection_reasons` |
+| `inventory.vehicles` | `type` | `inventory.vehicle_types` *(moved to core for multi-tenant — seeded in 04-seeds.sql)* |
+| `inventory.checklist_templates` | `work_type` | `operations.visit_types` *(core catalog)* |
+| `planning.routes` | `type` | `planning.route_types` *(moved to core catalog; gas seeds its codes)* |
+| `operations.visits` | `type` | `operations.visit_types` *(core catalog)* |
+| `operations.visits` | `result` | `operations.pre_visit_results` *(core catalog)* |
+| `operations.visits` | `rejection_reason_id` | `operations.rejection_reasons` *(core catalog)* |
 | `operations.visit_measurements` | `type` | `domain_gas.measurement_types` |
-| `operations.visit_photos` | `finding_type` | `domain_gas.photo_findings` |
+| `operations.visit_photos` | `finding_type` | `operations.photo_findings` *(core catalog)* |
 
 ---
 
@@ -186,97 +175,67 @@ Estado: Stack levantado y validado. Traefik + JWT auth funcionando.
 |------|-----------|
 | Sin JWT → Traefik | 401 Unauthorized |
 | JWT inválido → Traefik | 401 Unauthorized |
-| JWT válido → app_user_id() | employee_number correcto |
-| JWT válido → tech_roles query | 4 rows |
-| JWT válido → OpenAPI schema | 5 paths, 3 definitions |
-| Authelia login → GLAuth LDAP bind | 200 OK |
-| Authelia TOTP → MFA challenge | 200 OK |
+| LDAP bind (svc-localis) → Go Backend login | 200 OK |
+| JWT válido → /api/users | 200 OK |
 
 ### Architecture: JWT Auth Flow
 
 ```
 Client → Traefik :8088
-  → JWT Validator (forwardAuth) validates signature
-  → Injects X-User-ID (employee_number), X-User-Role headers
-  → Strip Authorization header
-  → PostgREST :3000
-    → db-pre-request: set_user_context()
-      → Reads headers from request.headers JSON
-      → Propagates employee_number + role via set_config
-    → Main query executes as fsm_api
+  → Go Backend :8080
+    → Validates JWT (HS256)
+    → Extracts employee_number, role from claims
+    → Queries PostgreSQL directly via pgx
 ```
 
-### Architecture: Auth Flow (GLAuth + Authelia)
+### Architecture: Auth Flow (GLAuth + Go Backend)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        TRAEFIK :8088                            │
 │  ┌─────────────────────┐  ┌──────────────────────────────────┐ │
-│  │ /api/*              │  │ /* (browser)                     │ │
-│  │ → jwt-auth          │  │ → authelia forwardAuth           │ │
-│  │ → PostgREST :3000   │  │ → Authelia :9091 → GLAuth :389   │ │
+│  │ /api/* /auth/*      │  │ /* (browser)                     │ │
+│  │ → Go Backend :8080  │  │ → Go Backend :8080               │ │
 │  └─────────────────────┘  └──────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 
 GLAuth (LDAP)
-├── uid=1000, cn=authelia (service user)
+├── uid=1000, cn=svc-localis (service user)
 ├── uid=1001, cn=admin (admins)
 ├── uid=1002, cn=operador (operators)
 └── uid=1003, cn=tecnico (technicians)
 
-Authelia → LDAP bind → Session cookie
-Backend Go → LDAP search → Generate JWT {sub: employee_number, role}
-PostgREST → app_user_id() returns employee_number (TEXT)
+Go Backend → LDAP search → Generate JWT {sub: employee_number, role}
+Go Backend → PostgreSQL via pgx (direct queries)
 ```
 
 ---
 
 ## 5. Fases pendientes
 
-### F6 Backend Go [SIGUIENTE]
+### F6 Backend Go ✅ COMPLETADO
 
-Opciones de diseño de API:
+Go Backend implementado con la siguiente arquitectura:
 
-**Opción A — REST por esquema (bounded context mapping)**:
-```
-/api/core/users
-/api/operations/visits
-/api/planning/daily_plans
-```
-- A favor: mapeo 1:1 con bounded contexts, fácil split futuro a microservicios
-- Contra: URLs verbosas
+- **Framework**: Gin v1.12.0 + pgx/v5
+- **Auth**: LDAP bind → JWT (HS256, jti, issuer validation) → RBAC middleware
+- **Handler/Service/Repo**: Thin controller pattern, ~55 tablas, interfaces en `repository/interfaces.go`
+- **Seguridad**: Rate limiting (login 10/min, API 100/min), CORS allowlist, security headers, body limit 10MB
+- **Operational**: Request ID, structured logging (slog), graceful shutdown
+- **DB**: Direct PostgreSQL via pgx (no ORM), PostGIS geometry handling, transactions on critical paths
 
-**Opción B — Recurso-driven**:
-```
-/api/users
-/api/visits
-/api/daily-plans
-```
-- A favor: REST standard
-- Contra: requiere routing interno por schema
+### F7 Pendiente
 
-**Tareas F6**:
-1. Scaffolding módulo Go (go.mod, cmd/, internal/)
-2. LDAP client (go-ldap/ldap) para buscar usuarios en GLAuth
-3. JWT signing (HS256 with PGRST_JWT_SECRET — shared with Traefik JWT validator)
-4. Endpoint `/auth/token` (LDAP bind → JWT generation)
-5. Capa de servicios por bounded context
-6. Tipos shared Go ↔ enums PG
-7. Tests unitarios + integration
-8. Dockerfile
-
-### F7 Definiciones pendientes
-
-| Tema | Decisión |
-|------|----------|
-| API style (REST por esquema vs recurso) | pendiente |
-| JWT algorithm (HS256 vs RS256) | HS256 (ya implementado en JWT validator) |
-| Migration tooling (goose / atlas / manual) | pendiente |
-| Logging (slog / zap / zerolog) | pendiente |
-| ORM (sqlc / pgx direct / bun / gorm) | pendiente |
-| Tests framework (testify / stdlib) | pendiente |
-| Auth flow (login endpoint / IdP externo) | **GLAuth (LDAP) + Authelia** |
-| Background workers (asynq / river / stdlib) | pendiente |
+| Tema | Estado |
+|------|--------|
+| API style (REST por esquema) | ✅ Recurso-driven implementado |
+| JWT algorithm | ✅ HS256 (hardcoded, secret ≥32 bytes) |
+| Migration tooling | Pendiente |
+| Logging | ✅ slog (structured) |
+| ORM | ✅ pgx directo (hand-written repos) |
+| Tests framework | Pendiente (sin tests unitarios) |
+| Auth flow | ✅ GLAuth (LDAP) + Go Backend |
+| Background workers | Pendiente |
 
 ### F8 UI / Frontend
 No definido.
@@ -301,47 +260,38 @@ localis/
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
-├── postgrest.conf
 ├── opencode.json
 ├── sql/
 │   └── schema.md
 ├── traefik/
-│   ├── traefik.yml              # Traefik v3 static config
-│   ├── dynamic.yml              # JWT forwardAuth + authelia + PostgREST router
-│   └── jwt-validator/
-│       ├── Dockerfile           # Multi-stage Go build (~10MB)
-│       ├── main.go              # Minimal JWT validator (stdlib only)
-│       └── go.mod
+│   ├── traefik.yml
+│   ├── dynamic.yml
+│   ├── traefik.prod.yml
+│   └── dynamic.prod.yml
 ├── glauth/
-│   └── config.toml              # GLAuth LDAP config (users, groups)
-├── authelia/
-│   └── config/
-│       └── configuration.yml    # Authelia config (LDAP backend, TOTP, session)
-├── docker/
-│   └── init/
-│       ├── 01-roles.sql
-│       ├── 02-schemas.sql
-│       ├── 03-schema.sql
-│       ├── 04-seeds.sql
-│       ├── 05-comments.sql
-│       └── 06-pre-request.sql   # set_user_context() for Traefik auth
+│   └── config.toml
+├── backend/
+│   ├── cmd/server/main.go
+│   ├── internal/
+│   └── Dockerfile
+├── docker/init/
+│   ├── 01-roles.sql
+│   ├── 02-schemas.sql
+│   ├── 03-schema.sql
+│   ├── 04-seeds.sql
+│   ├── 05-comments.sql
+│   └── 06-pre-request.sql
 ├── scripts/
-│   └── reload-postgrest-cache.sh
+│   ├── validate-stack.sh
+│   └── test-auth.sh
 ├── industry-packs/
 │   └── gas/
 │       ├── init/
-│       │   ├── 01-schemas.sql
-│       │   ├── 02-tables.sql
-│       │   ├── 03-seeds.sql
-│       │   ├── 04-grants.sql
-│       │   └── 05-comments.sql
 │       ├── docker-compose.override.yml
 │       └── README.md
 ├── postman/
-│   ├── GAS-FSM.postman_collection.json
+│   ├── FSM.postman_collection.json
 │   ├── scripts/
-│   │   ├── jwt-generator.js
-│   │   └── generate-collection.js
 │   └── README.md
 └── examples/
     ├── altogasspa/
@@ -367,5 +317,8 @@ localis/
 | GRANT statements | 9 core + industry pack |
 | Init files Core | 6 |
 | Init files Industry Pack (Gas) | 5 |
-| Auth | GLAuth (LDAP) → Authelia (MFA) + Backend Go (JWT) → Traefik → PostgREST |
+| Auth | GLAuth (LDAP) → Go Backend (JWT) → Traefik → PostgreSQL via pgx |
+| Backend handlers | ~50 handler files |
+| Backend services | ~15 service files |
+| Backend repos | ~50 repository files |
 | Naming convention | English (industry standard: snake_case) |

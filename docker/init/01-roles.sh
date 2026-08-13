@@ -35,7 +35,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   GRANT fsm_migrator TO fsm_backend;
   GRANT fsm_migrator TO fsm_api;
 
-  -- search_path for application roles (without domain_gas - loaded by industry pack)
+  -- search_path for application roles (industry-specific schemas added by industry pack)
   ALTER ROLE fsm_api SET search_path TO core, partners, customers, inventory, operations, planning, notifications, geocoding, shared;
   ALTER ROLE fsm_backend SET search_path TO core, partners, customers, inventory, operations, planning, notifications, geocoding, shared;
 EOSQL

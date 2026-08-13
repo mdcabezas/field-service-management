@@ -4,21 +4,23 @@
 
 -- CORE
 COMMENT ON SCHEMA core IS 'Core context: users, roles, audit';
-COMMENT ON TABLE core.users IS 'System users synced from GLAuth LDAP (employee_number = uidnumber)';
-COMMENT ON COLUMN core.users.employee_number IS 'Employee number (GLAuth uidnumber) = JWT sub claim';
+COMMENT ON TABLE core.users IS 'System users; JWT sub claim = users.id';
+COMMENT ON COLUMN core.users.id IS 'User id, equals JWT sub claim';
 COMMENT ON COLUMN core.users.email IS 'Unique login email';
 COMMENT ON COLUMN core.users.role IS 'Access role: admin, operator, technician';
-COMMENT ON COLUMN core.users.is_active IS 'User active status (can be disabled without deleting)';
+COMMENT ON COLUMN core.users.password_hash IS 'Hashed password (NULL when LDAP-authenticated)';
 
 COMMENT ON TABLE core.tech_roles IS 'Functional technician role (Driver, Technician, Helper, Operative)';
 COMMENT ON TABLE core.plan_audit_log IS 'Audit trail for checklist/consumption changes';
 COMMENT ON COLUMN core.plan_audit_log.entity_type IS 'Audited entity type (daily_load_material, visit_checklist_tool, etc.)';
 COMMENT ON COLUMN core.plan_audit_log.old_data IS 'State before change (NULL on INSERT)';
 COMMENT ON COLUMN core.plan_audit_log.new_data IS 'State after change (NULL on DELETE)';
+COMMENT ON TABLE core.auth_audit_log IS 'Authentication/authorization audit trail';
 
 -- PARTNERS
 COMMENT ON SCHEMA partners IS 'Partners context: partner companies and agreements';
 COMMENT ON TABLE partners.partners IS 'Partner company (distributor/retailer)';
+COMMENT ON TABLE partners.partner_service_types IS 'Partner service type catalog (industry-agnostic)';
 COMMENT ON TABLE partners.partner_contacts IS 'Administrative/commercial partner contacts';
 COMMENT ON TABLE partners.partner_agreements IS 'Commercial agreement: services contracted by a partner';
 COMMENT ON TABLE partners.partner_agreement_docs IS 'Required documentation by work type';
@@ -42,7 +44,9 @@ COMMENT ON SCHEMA inventory IS 'Inventory context: materials, tools, PPE, vehicl
 COMMENT ON TABLE inventory.materials IS 'Materials and supplies';
 COMMENT ON TABLE inventory.tools IS 'Tools';
 COMMENT ON TABLE inventory.epp_items IS 'Personal protective equipment';
+COMMENT ON TABLE inventory.equipment IS 'General equipment (compressor, generator, etc.)';
 COMMENT ON TABLE inventory.vehicles IS 'Fleet vehicles';
+COMMENT ON TABLE inventory.vehicle_types IS 'Vehicle type catalog (industry-agnostic)';
 COMMENT ON TABLE inventory.rentals IS 'Rented equipment/vehicles';
 COMMENT ON TABLE inventory.checklist_templates IS 'Checklist template by work type';
 COMMENT ON TABLE inventory.cost_rates IS 'Cost rates (labor, vehicle, depreciation, PPE, overhead)';
@@ -53,6 +57,10 @@ COMMENT ON TABLE inventory.maintenance_schedules IS 'Preventive maintenance plan
 
 -- OPERATIONS
 COMMENT ON SCHEMA operations IS 'Operations context: visits, assignments, checklists, measurements, checkpoints, photos, reports';
+COMMENT ON TABLE operations.visit_types IS 'Visit type catalog (industry-agnostic)';
+COMMENT ON TABLE operations.photo_findings IS 'Photo finding type catalog (industry-agnostic)';
+COMMENT ON TABLE operations.pre_visit_results IS 'Pre-visit result catalog (industry-agnostic)';
+COMMENT ON TABLE operations.rejection_reasons IS 'Rejection reason catalog (industry-agnostic)';
 COMMENT ON TABLE operations.visits IS 'Main system entity: a technical visit';
 COMMENT ON COLUMN operations.visits.parent_visit_id IS 'Parent visit (if pre_visit or sub-visit)';
 COMMENT ON COLUMN operations.visits.partner_order_id IS 'Partner order ID';
@@ -81,6 +89,7 @@ COMMENT ON TABLE operations.visit_sla_trackings IS 'SLA compliance tracking';
 -- PLANNING
 COMMENT ON SCHEMA planning IS 'Planning context: daily plan, technician assignment, material loading, routes';
 COMMENT ON TABLE planning.daily_plans IS 'Consolidated daily work plan';
+COMMENT ON COLUMN planning.daily_plans.name IS 'Human-readable name of the daily plan';
 COMMENT ON TABLE planning.daily_plan_assignments IS 'Technician assignment to daily plan';
 COMMENT ON TABLE planning.daily_load_materials IS 'Materials loaded/returned for the day';
 COMMENT ON TABLE planning.daily_load_tools IS 'Tools loaded/returned';

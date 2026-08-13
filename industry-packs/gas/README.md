@@ -20,36 +20,40 @@ industry-packs/gas/
 
 | Table | Purpose |
 |-------|---------|
-| `domain_gas.visit_types` | 7 visit types (pre_visit, installation, maintenance, emergency, certification, repair, diagnosis) |
 | `domain_gas.measurement_types` | 8 measurement types (tightness, pressure, CO, draft, leak, pH, temperature, other) |
-| `domain_gas.photo_findings` | 6 photo finding types (normal, leak, damage, emergency, incomplete, other) |
-| `domain_gas.vehicle_types` | 5 vehicle types (truck, crane, van, crane_truck, other) |
-| `domain_gas.partner_service_types` | 5 service types (installation, maintenance, certification, emergency, other) |
-| `domain_gas.pre_visit_results` | 3 results (approved, rejected, conditional) |
-| `domain_gas.route_types` | 6 route types (meter_reading, letter_delivery, tank_collection, tank_delivery, mass_inspection, mixed) |
 | `domain_gas.property_types` | 5 property types with extra column config (tank, meter, indoor_piping, appliance, other) |
 | `domain_gas.certifications` | 9 SEC Chile certifications (CL1, CL2, CL3, GLP, TC1, TC2, TC6, GREEN SEAL, DS66) |
-| `domain_gas.rejection_reasons` | 17 reasons in 4 categories (logistics, regulatory, customer, operational) |
 | `domain_gas.property_assets` | Extra property attributes (poles, meter, etc.) |
+
+Industry-agnostic catalogs live in the core and are seeded there (see `docker/init/04-seeds.sql`); this pack adds its specific codes into those core tables via `91-gas-02-seeds.sql`:
+
+| Core catalog | Gas codes added |
+|--------------|-----------------|
+| `operations.visit_types` | pre_visit, installation, maintenance, emergency, certification, repair, diagnosis |
+| `operations.photo_findings` | normal, leak, damage, emergency, incomplete, other |
+| `operations.pre_visit_results` | approved, rejected, conditional |
+| `operations.rejection_reasons` | 17 reasons in 4 categories (logistics, regulatory, customer, operational) |
+| `partners.partner_service_types` | installation, maintenance, certification, emergency, other |
+| `planning.route_types` | meter_reading, letter_delivery, tank_collection, tank_delivery, mass_inspection, mixed |
 
 ## Foreign Keys Added to Core
 
-The industry pack adds FK constraints from core tables to `domain_gas` lookup tables:
+Universal catalogs were moved to core (`sql/20260813_catalogs_core.sql`); the pack keeps the FK wiring pointing to those core tables so every tenant, gas or not, ships the catalogs:
 
 | Core Table | Column | References |
 |------------|--------|------------|
-| `partners.partner_agreements` | `service_type` | `domain_gas.partner_service_types(id)` |
-| `partners.slas` | `work_type` | `domain_gas.visit_types(id)` |
+| `partners.partner_agreements` | `service_type` | `partners.partner_service_types(id)` *(core)* |
+| `partners.slas` | `work_type` | `operations.visit_types(id)` *(core)* |
 | `customers.properties` | `type` | `domain_gas.property_types(id)` |
 | `customers.tech_certifications` | `cert_id` | `domain_gas.certifications(id)` |
-| `inventory.vehicles` | `type` | `domain_gas.vehicle_types(id)` |
-| `inventory.checklist_templates` | `work_type` | `domain_gas.visit_types(id)` |
-| `planning.routes` | `type` | `domain_gas.route_types(id)` |
-| `operations.visits` | `type` | `domain_gas.visit_types(id)` |
-| `operations.visits` | `result` | `domain_gas.pre_visit_results(id)` |
-| `operations.visits` | `rejection_reason_id` | `domain_gas.rejection_reasons(id)` |
+| `inventory.vehicles` | `type` | `inventory.vehicle_types(id)` *(core, seeded by 04-seeds.sql)* |
+| `inventory.checklist_templates` | `work_type` | `operations.visit_types(id)` *(core)* |
+| `planning.routes` | `type` | `planning.route_types(id)` *(core catalog; gas seeds its codes via 91-gas-02-seeds.sql)* |
+| `operations.visits` | `type` | `operations.visit_types(id)` *(core)* |
+| `operations.visits` | `result` | `operations.pre_visit_results(id)` *(core)* |
+| `operations.visits` | `rejection_reason_id` | `operations.rejection_reasons(id)` *(core)* |
 | `operations.visit_measurements` | `type` | `domain_gas.measurement_types(id)` |
-| `operations.visit_photos` | `finding_type` | `domain_gas.photo_findings(id)` |
+| `operations.visit_photos` | `finding_type` | `operations.photo_findings(id)` *(core)* |
 
 ## Usage
 

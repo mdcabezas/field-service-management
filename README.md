@@ -1,16 +1,15 @@
 # Field Service Management (FSM)
 
-Generic FSM system for multi-industry field service operations. Single-tenant architecture with PostgreSQL, PostgREST, and JWT authentication via Traefik.
+Generic FSM system for multi-industry field service operations. Single-tenant architecture with PostgreSQL, Go Backend (Gin), and JWT authentication.
 
 ## Stack
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
 | PostgreSQL | 16 + PostGIS 3.5 | Database |
-| PostgREST | 12.2.3 | REST API |
+| Go Backend | 1.26 | REST API (Gin + pgx) |
 | Traefik | 3.0 | API Gateway |
 | GLAuth | latest | LDAP server |
-| Authelia | 4.38 | MFA authentication |
 | Docker Compose | v2 | Container orchestration |
 
 ## Architecture
@@ -19,16 +18,21 @@ Generic FSM system for multi-industry field service operations. Single-tenant ar
 ┌─────────────────────────────────────────────────────────────────┐
 │                        TRAEFIK :8088                            │
 │  ┌─────────────────────┐  ┌──────────────────────────────────┐ │
-│  │ /api/*              │  │ /* (browser)                     │ │
-│  │ → jwt-auth          │  │ → authelia forwardAuth           │ │
-│  │ → PostgREST :3000   │  │ → Authelia :9091 → GLAuth :389   │ │
+│  │ /api/* /auth/*      │  │ /* (browser)                     │ │
+│  │ → Go Backend :8080  │  │ → Go Backend :8080               │ │
 │  └─────────────────────┘  └──────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
+
+Go Backend (Gin + pgx)
+├── LDAP bind (GLAuth :389) → validates credentials
+├── JWT generation (HS256)
+├── JWT middleware (validates tokens)
+└── Direct PostgreSQL queries via pgx
 ```
 
 - **Single-tenant**: Sin RLS, sin `company_id`
-- **Core + Industry Packs**: FSM genérico + packs específicos por industria
-- **JWT Auth**: Traefik valida JWT, inyecta headers → PostgREST
+- **Core + Industry Packs**: FSM generico + packs especificos por industria
+- **JWT Auth**: Go Backend validates JWT, queries PostgreSQL directly
 
 ## Quick Start
 
@@ -71,9 +75,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
 ```
 field-service-management/
-├── docker-compose.yml          # Dev stack (6 services)
+├── docker-compose.yml          # Dev stack
 ├── docker-compose.prod.yml     # Production stack
-├── postgrest.conf              # PostgREST configuration
 ├── .env.example                # Environment template
 ├── .env.prod.example           # Production template
 │
@@ -89,15 +92,15 @@ field-service-management/
 │   ├── traefik.yml             # Static config (dev)
 │   ├── traefik.prod.yml        # Static config (prod)
 │   ├── dynamic.yml             # Routes (dev)
-│   ├── dynamic.prod.yml        # Routes (prod)
-│   └── jwt-validator/          # JWT validation service
+│   └── dynamic.prod.yml        # Routes (prod)
 │
 ├── glauth/                     # LDAP server
 │   └── config.toml             # Users and groups
 │
-├── authelia/                   # MFA authentication
-│   └── config/
-│       └── configuration.yml   # Authelia config
+├── backend/                    # Go Backend (Gin + pgx)
+│   ├── cmd/server/main.go      # Entry point
+│   ├── internal/               # Handlers, services, repositories
+│   └── Dockerfile
 │
 ├── industry-packs/             # Industry-specific extensions
 │   └── gas/                    # Gas industry pack
@@ -107,12 +110,10 @@ field-service-management/
 │
 ├── scripts/                    # Operational scripts
 │   ├── validate-stack.sh       # Healthcheck
-│   ├── test-auth.sh            # LDAP test
-│   ├── generate-jwt.sh         # JWT generator
-│   └── reload-postgrest-cache.sh
+│   └── test-auth.sh            # LDAP test
 │
 ├── postman/                    # API collection
-│   ├── GAS-FSM.postman_collection.json
+│   ├── FSM.postman_collection.json
 │   └── scripts/
 │
 ├── sql/
@@ -128,15 +129,8 @@ field-service-management/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `POSTGRES_PASSWORD` | PostgreSQL superuser password | Yes |
-| `FSM_API_PASSWORD` | PostgREST API role password | Yes |
-| `PGRST_JWT_SECRET` | JWT signing secret (shared) | Yes |
-| `AUTHELIA_SESSION_SECRET` | Authelia session secret (32+ chars) | Yes |
-| `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Authelia storage key (32+ chars) | Yes |
-| `AUTHELIA_JWT_SECRET` | Authelia JWT secret (32+ chars) | Yes |
-| `AUTHELIA_LDAP_PASSWORD` | LDAP bind password for Authelia | Yes |
-| `AUTHELIA_SESSION_DOMAIN` | Cookie domain (dev: localhost) | No |
-| `AUTHELIA_AUTHELIA_URL` | Authelia URL (dev: http://localhost:9091) | No |
-| `AUTHELIA_DEFAULT_REDIRECT` | Post-login redirect URL | No |
+| `JWT_SECRET` | JWT signing secret (HS256) | Yes |
+| `LDAP_SERVICE_PASSWORD` | LDAP service bind password | Yes |
 
 Generate secrets with:
 ```bash
@@ -157,14 +151,10 @@ openssl rand -base64 32
 
 ```
 1. Client → Traefik (:8088)
-2. Traefik → JWT Validator (forwardAuth)
-3. JWT Validator validates HMAC-SHA256 signature
-4. JWT Validator returns X-User-ID, X-User-Role headers
-5. Traefik strips Authorization header
-6. Traefik → PostgREST (:3000)
-7. PostgREST calls set_user_context()
-8. set_user_context() reads headers → sets JWT claims
-9. Query executes as fsm_api with user context
+2. Traefik → Go Backend (:8080)
+3. Go Backend validates JWT (HS256)
+4. Go Backend extracts employee_number, role from claims
+5. Go Backend queries PostgreSQL directly via pgx
 ```
 
 ### JWT Payload
@@ -186,17 +176,28 @@ Adds Chilean gas industry-specific tables and constraints:
 
 | Table | Purpose |
 |-------|---------|
-| `domain_gas.visit_types` | 7 visit types |
 | `domain_gas.measurement_types` | 8 measurement types |
 | `domain_gas.certifications` | 9 SEC Chile certifications |
-| `domain_gas.rejection_reasons` | 17 rejection reasons |
 | `domain_gas.property_types` | 5 property types |
-| `domain_gas.vehicle_types` | 5 vehicle types |
-| `domain_gas.route_types` | 6 route types |
-| `domain_gas.photo_findings` | 6 photo finding types |
-| `domain_gas.partner_service_types` | 5 service types |
-| `domain_gas.pre_visit_results` | 3 results |
 | `domain_gas.property_assets` | Extra property attributes |
+
+Industry-agnostic catalogs live in the core (see Core Catalogs below): `operations.visit_types`, `operations.photo_findings`, `operations.pre_visit_results`, `operations.rejection_reasons`, and `partners.partner_service_types`. The gas pack seeds its specific codes into these core tables.
+
+### Core Catalogs
+
+The following lookup catalogs are seeded in the core (`docker/init/04-seeds.sql`) so they work for every tenant regardless of industry pack:
+
+| Table | Generic seeds |
+|-------|---------------|
+| `inventory.vehicle_types` | truck, crane, van, crane_truck, other |
+| `planning.route_types` | maintenance, installation, repair, inspection, delivery, collection, emergency, other |
+| `operations.visit_types` | pre_visit, installation, maintenance, repair, diagnosis, inspection, emergency, certification, other |
+| `operations.photo_findings` | normal, damage, incomplete, other |
+| `operations.pre_visit_results` | approved, rejected, conditional |
+| `operations.rejection_reasons` | customer_unavailable, customer_cancelled, missing_documentation, other |
+| `partners.partner_service_types` | installation, maintenance, repair, certification, emergency, other |
+
+Industry packs may add their own codes to these catalogs (see `industry-packs/gas/initdb.d/91-gas-02-seeds.sql`).
 
 See `industry-packs/gas/README.md` for details.
 
@@ -210,14 +211,27 @@ docker compose -f docker-compose.yml -f industry-packs/gas/docker-compose.overri
 docker compose -f docker-compose.prod.yml -f industry-packs/gas/docker-compose.prod.yml --env-file .env.prod up -d
 ```
 
+### Multi-tenant (SaaS, Option A: database-per-tenant)
+
+Core + one industry pack per tenant database. One backend instance per tenant, pointed at its own `DATABASE_URL`.
+
+```bash
+# Provision a new tenant (core init + gas pack)
+./scripts/provision-tenant.sh altogasspa gas
+
+# Point a backend instance at the tenant
+DATABASE_URL="postgres://fsm_admin:...@postgres:5432/fsm_altogasspa?sslmode=disable"
+```
+
+`inventory.vehicle_types`, `planning.route_types`, `operations.visit_types`, `operations.photo_findings`, `operations.pre_visit_results`, `operations.rejection_reasons`, and `partners.partner_service_types` live in the core catalog (seeded by `04-seeds.sql`), so these lookups work for every tenant regardless of industry pack.
+
 ## Scripts
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `validate-stack.sh` | Healthcheck all 6 services | `./scripts/validate-stack.sh` |
+| `validate-stack.sh` | Healthcheck all services | `./scripts/validate-stack.sh` |
 | `test-auth.sh` | Test LDAP bind | `./scripts/test-auth.sh <user> <password>` |
-| `generate-jwt.sh` | Generate JWT token | `PGRST_JWT_SECRET=<secret> ./scripts/generate-jwt.sh` |
-| `reload-postgrest-cache.sh` | Reload PostgREST schema cache | `./scripts/reload-postgrest-cache.sh` |
+| `provision-tenant.sh` | Create a tenant DB (core + industry pack) | `./scripts/provision-tenant.sh <name> [pack]` |
 
 ## Database
 
@@ -241,8 +255,8 @@ docker compose -f docker-compose.prod.yml -f industry-packs/gas/docker-compose.p
 |--------|-------|
 | Core tables | ~49 |
 | Core enums | 27 |
-| Industry pack tables | 11 |
-| Industry pack FKs | 12 |
+| Industry pack tables | 10 |
+| Industry pack FKs | 11 |
 | Triggers | 13 |
 | Functions | 4 |
 

@@ -35,7 +35,7 @@ Field Service Management system for multi-industry field service operations.
 
 ## Authentication
 
-JWT signed by Go backend, validated by Traefik JWT validator, consumed by PostgREST via `set_user_context()`.
+JWT signed by Go backend, consumed by PostgREST via `set_user_context()`.
 
 **JWT payload**:
 ```json
@@ -52,8 +52,8 @@ JWT signed by Go backend, validated by Traefik JWT validator, consumed by PostgR
 
 **Auth flow**:
 ```
-Browser → Authelia → GLAuth (LDAP bind) → Session cookie
-API → Traefik → JWT Validator → X-User-ID, X-User-Role → PostgREST → set_user_context()
+Client → Go Backend → LDAP bind (GLAuth) → JWT
+API → Traefik → Go Backend → PostgREST → set_user_context()
 ```
 
 ## Schemas (bounded contexts)
@@ -74,9 +74,7 @@ API → Traefik → JWT Validator → X-User-ID, X-User-Role → PostgREST → s
 
 ### Industry Pack: Gas Chile (`domain_gas`)
 
-| Schema | Tables | Purpose |
-|--------|--------|---------|
-| `domain_gas` | visit_types, measurement_types, photo_findings, vehicle_types, partner_service_types, pre_visit_results, route_types, property_types, certifications, rejection_reasons, property_assets | Gas Chile specific: lookup tables, SEC certifications, rejection reasons, property assets |
+See [industry-packs/gas/README.md](../industry-packs/gas/README.md) for full documentation.
 
 ---
 
@@ -794,134 +792,7 @@ Enum `shared.rejection_category` remains here (generic).
 
 ### `domain_gas` (Gas Chile Industry Pack)
 
-Industry-specific lookup tables and catalogs. For another industry, replace seeds and create new lookup tables.
-
-#### `domain_gas.visit_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: pre_visit, installation, maintenance, emergency, certification, repair, diagnosis.
-
-#### `domain_gas.measurement_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| default_unit | TEXT | |
-| active | BOOLEAN | |
-
-Seed: tightness, pressure, co, draft, leak, ph, temperature, other.
-
-#### `domain_gas.photo_findings`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: normal, leak, damage, emergency, incomplete, other.
-
-#### `domain_gas.vehicle_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: truck, crane, van, crane_truck, other.
-
-#### `domain_gas.partner_service_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: installation, maintenance, certification, emergency, other.
-
-#### `domain_gas.pre_visit_results`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: approved, rejected, conditional.
-
-#### `domain_gas.route_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| active | BOOLEAN | |
-
-Seed: meter_reading, letter_delivery, tank_collection, tank_delivery, mass_inspection, mixed.
-
-#### `domain_gas.property_types`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| columns_config | JSONB | Extra column config per type |
-| active | BOOLEAN | |
-
-Seed: tank, meter, indoor_piping, appliance, other.
-
-#### `domain_gas.certifications`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| class | TEXT | |
-| description | TEXT | |
-| active | BOOLEAN | |
-| created_at | TIMESTAMPTZ | |
-
-Seed: CL1, CL2, CL3, GLP, TC1, TC2, TC6, GREEN SEAL, DS66.
-
-#### `domain_gas.rejection_reasons`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| code | TEXT UNIQUE | |
-| name | TEXT | |
-| category | shared.rejection_category | |
-| active | BOOLEAN | |
-| created_at | TIMESTAMPTZ | |
-
-Seed: 17 reasons in 4 categories.
-
-#### `domain_gas.property_assets`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID PK | |
-| property_id | UUID FK → customers.properties | |
-| type | TEXT | Attribute name (poles, meter, etc.) |
-| value | JSONB | Attribute value |
-| created_at | TIMESTAMPTZ | |
+See [industry-packs/gas/README.md](../industry-packs/gas/README.md) for table definitions, seeds, and FK constraints.
 
 ---
 

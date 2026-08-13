@@ -139,10 +139,10 @@ CREATE TYPE maintenance_type AS ENUM (
 
 SET search_path TO core, public;
 
--- app_user_id: retrieves employee_number from JWT claim sub (signed by Go backend)
+-- app_user_id: retrieves the user id from the JWT claim sub (signed by Go backend)
 CREATE OR REPLACE FUNCTION app_user_id()
-RETURNS TEXT AS $$
-  SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::TEXT;
+RETURNS uuid AS $$
+  SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
 $$ LANGUAGE sql STABLE;
 
 -- touch_updated_at: trigger function for automatic updated_at
@@ -191,7 +191,7 @@ BEGIN
   END CASE;
 
   IF v_entity_type IS NOT NULL THEN
-    INSERT INTO plan_audit_log (entity_type, entity_id, action, old_data, new_data, user_id)
+    INSERT INTO core.plan_audit_log (entity_type, entity_id, action, old_data, new_data, user_id)
     VALUES (
       v_entity_type,
       CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,
@@ -214,6 +214,43 @@ BEGIN
   IF NEW.route_id IS NOT NULL AND NEW.daily_plan_id IS NOT NULL THEN
     IF NEW.daily_plan_id != (SELECT daily_plan_id FROM planning.routes WHERE id = NEW.route_id) THEN
       RAISE EXCEPTION 'daily_plan_id does not match the specified route (D2)';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Validate polymorphic reference_id for maintenance records/schedules:
+-- type='vehicle' -> inventory.vehicles, 'tool' -> inventory.tools, 'equipment' -> inventory.equipment
+CREATE OR REPLACE FUNCTION validate_maintenance_reference()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.type = 'vehicle' AND NOT EXISTS (SELECT 1 FROM inventory.vehicles v WHERE v.id = NEW.reference_id) THEN
+    RAISE EXCEPTION 'maintenance reference_id not found in inventory.vehicles (type=vehicle)';
+  ELSIF NEW.type = 'tool' AND NOT EXISTS (SELECT 1 FROM inventory.tools t WHERE t.id = NEW.reference_id) THEN
+    RAISE EXCEPTION 'maintenance reference_id not found in inventory.tools (type=tool)';
+  ELSIF NEW.type = 'equipment' AND NOT EXISTS (SELECT 1 FROM inventory.equipment e WHERE e.id = NEW.reference_id) THEN
+    RAISE EXCEPTION 'maintenance reference_id not found in inventory.equipment (type=equipment)';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Validate polymorphic cost_rates reference: reference_type + reference_id
+CREATE OR REPLACE FUNCTION validate_cost_rate_reference()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.reference_id IS NOT NULL THEN
+    IF NEW.reference_type = 'vehicle' AND NOT EXISTS (SELECT 1 FROM inventory.vehicles v WHERE v.id = NEW.reference_id) THEN
+      RAISE EXCEPTION 'cost_rate reference_id not found in inventory.vehicles (reference_type=vehicle)';
+    ELSIF NEW.reference_type = 'tool' AND NOT EXISTS (SELECT 1 FROM inventory.tools t WHERE t.id = NEW.reference_id) THEN
+      RAISE EXCEPTION 'cost_rate reference_id not found in inventory.tools (reference_type=tool)';
+    ELSIF NEW.reference_type = 'equipment' AND NOT EXISTS (SELECT 1 FROM inventory.equipment e WHERE e.id = NEW.reference_id) THEN
+      RAISE EXCEPTION 'cost_rate reference_id not found in inventory.equipment (reference_type=equipment)';
+    ELSIF NEW.reference_type = 'epp_item' AND NOT EXISTS (SELECT 1 FROM inventory.epp_items e WHERE e.id = NEW.reference_id) THEN
+      RAISE EXCEPTION 'cost_rate reference_id not found in inventory.epp_items (reference_type=epp_item)';
+    ELSIF NEW.reference_type = 'material' AND NOT EXISTS (SELECT 1 FROM inventory.materials m WHERE m.id = NEW.reference_id) THEN
+      RAISE EXCEPTION 'cost_rate reference_id not found in inventory.materials (reference_type=material)';
     END IF;
   END IF;
   RETURN NEW;
@@ -257,13 +294,12 @@ CREATE INDEX idx_addresses_geom ON geocoding.addresses USING GIST(geom);
 -- ============================================================================
 
 CREATE TABLE core.users (
-  employee_number TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'technician',
   name TEXT NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  password_hash TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE UNIQUE INDEX idx_users_email ON core.users(email);
@@ -283,7 +319,7 @@ CREATE TABLE core.plan_audit_log (
   action shared.audit_action NOT NULL,
   old_data JSONB,
   new_data JSONB,
-  user_id TEXT,
+  user_id UUID REFERENCES core.users(id),
   reason TEXT,
   timestamp TIMESTAMPTZ DEFAULT now()
 );
@@ -292,9 +328,27 @@ CREATE INDEX idx_plan_audit_log_entity ON core.plan_audit_log(entity_type, entit
 CREATE INDEX idx_plan_audit_log_user ON core.plan_audit_log(user_id);
 CREATE INDEX idx_plan_audit_log_timestamp ON core.plan_audit_log(timestamp);
 
+CREATE TABLE core.auth_audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES core.users(id),
+  role TEXT,
+  ip INET,
+  endpoint TEXT,
+  method TEXT,
+  status_code INTEGER,
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+
 -- ============================================================================
 -- PARTNERS
 -- ============================================================================
+
+CREATE TABLE partners.partner_service_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true
+);
 
 CREATE TABLE partners.partners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -320,7 +374,7 @@ CREATE INDEX idx_partner_contacts_partner ON partners.partner_contacts(partner_i
 CREATE TABLE partners.partner_agreements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   partner_id UUID NOT NULL REFERENCES partners.partners(id),
-  service_type UUID NOT NULL,  -- FK added by industry pack
+  service_type UUID,  -- FK added by industry pack
   rate NUMERIC,
   active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -420,7 +474,7 @@ CREATE INDEX idx_properties_ca ON customers.properties(customer_address_id);
 
 CREATE TABLE customers.technicians (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT REFERENCES core.users(employee_number),
+  user_id UUID REFERENCES core.users(id),
   name TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
   specialties TEXT[],
@@ -469,9 +523,25 @@ CREATE TABLE inventory.epp_items (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE inventory.equipment (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT,
+  name TEXT NOT NULL,
+  status shared.tool_status DEFAULT 'available',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE inventory.vehicle_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE inventory.vehicles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type UUID,  -- FK added by industry pack
+  type UUID REFERENCES inventory.vehicle_types(id),  -- catalog seeded by industry pack
   license_plate TEXT,
   name TEXT NOT NULL,
   brand TEXT,
@@ -505,6 +575,10 @@ CREATE TABLE inventory.cost_rates (
   valid_until DATE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE inventory.cost_rates
+  ADD CONSTRAINT chk_cost_rates_reference_type
+  CHECK (reference_type IS NULL OR reference_type IN ('vehicle', 'tool', 'equipment', 'epp_item', 'material'));
 
 CREATE INDEX idx_cost_rates_type ON inventory.cost_rates(type);
 
@@ -547,8 +621,16 @@ CREATE TABLE inventory.checklist_templates (
 -- PLANNING (before operations due to visits↔routes↔daily_plans dependencies)
 -- ============================================================================
 
+CREATE TABLE planning.route_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true
+);
+
 CREATE TABLE planning.daily_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL DEFAULT 'Plan sin nombre',
   date DATE NOT NULL,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -617,6 +699,36 @@ CREATE INDEX idx_routes_daily_plan ON planning.routes(daily_plan_id);
 -- OPERATIONS
 -- ============================================================================
 
+CREATE TABLE operations.visit_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE operations.photo_findings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE operations.pre_visit_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE operations.rejection_reasons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  category shared.rejection_category NOT NULL,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE operations.visits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   property_id UUID REFERENCES customers.properties(id),
@@ -625,7 +737,7 @@ CREATE TABLE operations.visits (
   parent_visit_id UUID REFERENCES operations.visits(id),
   route_id UUID REFERENCES planning.routes(id),
   daily_plan_id UUID REFERENCES planning.daily_plans(id),
-  type UUID NOT NULL,  -- FK added by industry pack
+  type UUID,  -- FK added by industry pack
   status shared.visit_status NOT NULL DEFAULT 'scheduled',
   priority shared.visit_priority DEFAULT 'normal',
   source shared.visit_source,
@@ -770,7 +882,7 @@ CREATE INDEX idx_veu_visit ON operations.visit_epp_usages(visit_id);
 CREATE TABLE operations.visit_measurements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   visit_id UUID NOT NULL REFERENCES operations.visits(id),
-  type UUID NOT NULL,  -- FK added by industry pack
+  type UUID,  -- FK added by industry pack
   value NUMERIC,
   unit TEXT,
   result shared.measurement_result,
@@ -931,9 +1043,6 @@ CREATE INDEX idx_notifications_entity ON notifications.notifications(entity_type
 -- TRIGGERS — updated_at
 -- ============================================================================
 
-CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON core.users
-  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
-
 CREATE TRIGGER trg_partners_updated_at BEFORE UPDATE ON partners.partners
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
@@ -972,6 +1081,17 @@ CREATE TRIGGER trg_audit_visit_tool_usages AFTER INSERT OR UPDATE OR DELETE ON o
   FOR EACH ROW EXECUTE FUNCTION audit_change();
 CREATE TRIGGER trg_audit_visit_epp_usages AFTER INSERT OR UPDATE OR DELETE ON operations.visit_epp_usages
   FOR EACH ROW EXECUTE FUNCTION audit_change();
+
+-- ============================================================================
+-- TRIGGERS — polymorphic inventory references
+-- ============================================================================
+
+CREATE TRIGGER trg_maintenance_records_ref BEFORE INSERT OR UPDATE OF type, reference_id
+  ON inventory.maintenance_records FOR EACH ROW EXECUTE FUNCTION validate_maintenance_reference();
+CREATE TRIGGER trg_maintenance_schedules_ref BEFORE INSERT OR UPDATE OF type, reference_id
+  ON inventory.maintenance_schedules FOR EACH ROW EXECUTE FUNCTION validate_maintenance_reference();
+CREATE TRIGGER trg_cost_rates_ref BEFORE INSERT OR UPDATE OF reference_id, reference_type
+  ON inventory.cost_rates FOR EACH ROW EXECUTE FUNCTION validate_cost_rate_reference();
 
 -- ============================================================================
 -- GRANTS
