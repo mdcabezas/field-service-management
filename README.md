@@ -8,6 +8,7 @@ Generic FSM system for multi-industry field service operations. Single-tenant ar
 |-----------|---------|---------|
 | PostgreSQL | 16 + PostGIS 3.5 | Database |
 | Go Backend | 1.26 | REST API (Gin + pgx) |
+| Next.js Frontend | 15 | Web UI (React) |
 | Traefik | 3.0 | API Gateway |
 | GLAuth | latest | LDAP server |
 | Docker Compose | v2 | Container orchestration |
@@ -19,7 +20,7 @@ Generic FSM system for multi-industry field service operations. Single-tenant ar
 │                        TRAEFIK :8088                            │
 │  ┌─────────────────────┐  ┌──────────────────────────────────┐ │
 │  │ /api/* /auth/*      │  │ /* (browser)                     │ │
-│  │ → Go Backend :8080  │  │ → Go Backend :8080               │ │
+│  │ → Go Backend :8081  │  │ → Next.js Frontend :3000        │ │
 │  └─────────────────────┘  └──────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -28,6 +29,9 @@ Go Backend (Gin + pgx)
 ├── JWT generation (HS256)
 ├── JWT middleware (validates tokens)
 └── Direct PostgreSQL queries via pgx
+
+Next.js Frontend
+└── Client-side fetch to Go Backend via /api/* and /auth/*
 ```
 
 - **Single-tenant**: Sin RLS, sin `company_id`
@@ -86,7 +90,8 @@ field-service-management/
 │   ├── 03-schema.sql           # DDL (~1000 lines)
 │   ├── 04-seeds.sql            # Initial data
 │   ├── 05-comments.sql         # OpenAPI comments
-│   └── 06-pre-request.sql      # JWT auth function
+│   ├── 06-pre-request.sql      # JWT auth function
+│   └── 07-seed-data-dev.sql    # Dev seed data
 │
 ├── traefik/                    # API Gateway
 │   ├── traefik.yml             # Static config (dev)
@@ -100,24 +105,31 @@ field-service-management/
 ├── backend/                    # Go Backend (Gin + pgx)
 │   ├── cmd/server/main.go      # Entry point
 │   ├── internal/               # Handlers, services, repositories
+│   ├── scripts/                # Tenant provisioning tests
+│   └── Dockerfile
+│
+├── frontend/                   # Next.js Frontend (React)
+│   ├── src/                    # App routes and components
+│   ├── tests/                  # Playwright tests
 │   └── Dockerfile
 │
 ├── industry-packs/             # Industry-specific extensions
 │   └── gas/                    # Gas industry pack
-│       ├── init/               # SQL scripts
 │       ├── initdb.d/           # Auto-executed scripts
 │       └── README.md
 │
 ├── scripts/                    # Operational scripts
 │   ├── validate-stack.sh       # Healthcheck
-│   └── test-auth.sh            # LDAP test
+│   ├── test-auth.sh            # LDAP test
+│   └── provision-tenant.sh     # Tenant DB provisioning
 │
 ├── postman/                    # API collection
 │   ├── FSM.postman_collection.json
 │   └── scripts/
 │
 ├── sql/
-│   └── schema.md               # Schema documentation
+│   ├── schema.md               # Schema documentation
+│   └── 20260813_*.sql          # Standalone migrations
 │
 ├── DEPLOY.md                   # Production deployment
 ├── PLAN.md                     # Project plan
@@ -131,6 +143,7 @@ field-service-management/
 | `POSTGRES_PASSWORD` | PostgreSQL superuser password | Yes |
 | `JWT_SECRET` | JWT signing secret (HS256) | Yes |
 | `LDAP_SERVICE_PASSWORD` | LDAP service bind password | Yes |
+| `DATABASE_URL` | Backend PostgreSQL connection URL | Yes |
 
 Generate secrets with:
 ```bash
@@ -151,7 +164,7 @@ openssl rand -base64 32
 
 ```
 1. Client → Traefik (:8088)
-2. Traefik → Go Backend (:8080)
+2. Traefik → Go Backend (:8081)
 3. Go Backend validates JWT (HS256)
 4. Go Backend extracts employee_number, role from claims
 5. Go Backend queries PostgreSQL directly via pgx
@@ -253,9 +266,9 @@ DATABASE_URL="postgres://fsm_admin:...@postgres:5432/fsm_altogasspa?sslmode=disa
 
 | Metric | Value |
 |--------|-------|
-| Core tables | ~49 |
+| Core tables | 63 |
 | Core enums | 27 |
-| Industry pack tables | 10 |
+| Industry pack tables | 4 |
 | Industry pack FKs | 11 |
 | Triggers | 13 |
 | Functions | 4 |
