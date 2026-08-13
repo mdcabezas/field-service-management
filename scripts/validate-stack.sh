@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# validate-stack.sh — Healthcheck de los 6 servicios FSM
+# validate-stack.sh — Healthcheck de los servicios FSM
 # Uso: ./scripts/validate-stack.sh
 # ============================================================================
 
@@ -35,33 +35,23 @@ echo "=========================================="
 echo ""
 
 # 1. PostgreSQL
-echo -e "${YELLOW}[1/6] PostgreSQL${NC}"
+echo -e "${YELLOW}[1/4] PostgreSQL${NC}"
 check_service "Health" "postgres" "pg_isready -U fsm_admin -d fsm_fsm" || true
 check_service "Conn" "postgres" "psql -U fsm_admin -d fsm_fsm -c 'SELECT 1'" || true
 
-# 2. PostgREST
+# 2. GLAuth
 echo ""
-echo -e "${YELLOW}[2/6] PostgREST${NC}"
-check_service "Health" "postgrest" "wget -q -O- http://localhost:3000/" || true
+echo -e "${YELLOW}[2/4] GLAuth${NC}"
+check_service "LDAP" "glauth" "ldapsearch -x -H ldap://localhost:389 -b dc=workflows,dc=cl -D cn=svc-localis,dc=workflows,dc=cl -w \$LDAP_SERVICE_PASSWORD '(uid=1001)' 2>/dev/null | grep -q 'uidnumber'" || true
 
-# 3. GLAuth
+# 3. Go Backend
 echo ""
-echo -e "${YELLOW}[3/6] GLAuth${NC}"
-check_service "LDAP" "glauth" "ldapsearch -x -H ldap://localhost:389 -b dc=workflows,dc=cl -D cn=authelia,dc=workflows,dc=cl -w \$AUTHELIA_LDAP_PASSWORD '(uid=1001)' 2>/dev/null | grep -q 'uidnumber'" || true
+echo -e "${YELLOW}[3/4] Go Backend${NC}"
+check_service "Health" "go-backend" "wget -q -O- http://localhost:8080/health" || true
 
-# 4. Authelia
+# 4. Traefik
 echo ""
-echo -e "${YELLOW}[4/6] Authelia${NC}"
-check_service "Health" "authelia" "wget --no-verbose --tries=1 --spider http://localhost:9091/api/health" || true
-
-# 5. JWT Validator
-echo ""
-echo -e "${YELLOW}[5/6] JWT Validator${NC}"
-check_service "Health" "jwt-validator" "wget -q -O- http://localhost:8080/health 2>/dev/null || echo ok" || true
-
-# 6. Traefik
-echo ""
-echo -e "${YELLOW}[6/6] Traefik${NC}"
+echo -e "${YELLOW}[4/4] Traefik${NC}"
 check_service "API" "traefik" "wget -q -O- http://localhost:8080/api/overview 2>/dev/null | grep -q 'routers'" || true
 
 echo ""

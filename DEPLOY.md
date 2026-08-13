@@ -1,12 +1,11 @@
-# Despliegue Producción — workflows.cl
+# Despliegue Produccion — workflows.cl
 
 ## Prerrequisitos
 
 - Docker + Docker Compose v2
 - Dominio `workflows.cl` apuntando al servidor (A record)
-- Subdominios configurados:
+- Subdominio configurado:
   - `app.workflows.cl` → servidor
-  - `auth.workflows.cl` → servidor
 - Puerto 80 y 443 abiertos
 - Git instalado
 
@@ -19,41 +18,38 @@ git clone <repo-url>
 cd localis
 ```
 
-### 2. Configurar variables de producción
+### 2. Configurar variables de produccion
 
 ```bash
 cp .env.prod.example .env.prod
 ```
 
-### 3. Generar contraseñas seguras
+### 3. Generar contrasenas seguras
 
 ```bash
-# Generar cada contraseña
+# Generar cada contrasena
 openssl rand -base64 32
 ```
 
-Editar `.env.prod` con las contraseñas generadas:
+Editar `.env.prod` con las contrasenas generadas:
 
 ```bash
-POSTGRES_PASSWORD=<contraseña_generada>
-FSM_API_PASSWORD=<contraseña_generada>
-PGRST_JWT_SECRET=<contraseña_generada>
-AUTHELIA_SESSION_SECRET=<contraseña_generada>
-AUTHELIA_STORAGE_ENCRYPTION_KEY=<contraseña_generada>
-AUTHELIA_JWT_SECRET=<contraseña_generada>
+POSTGRES_PASSWORD=<contrasena_generada>
+JWT_SECRET=<contrasena_generada>
+LDAP_SERVICE_PASSWORD=<contrasena_generada>
 ```
 
 ### 4. Configurar GLAuth
 
-Editar `glauth/config.toml` con passwords hasheados para producción:
+Editar `glauth/config.toml` con passwords hasheados para produccion:
 
 ```bash
-# Generar hash SHA256 de una contraseña
+# Generar hash SHA256 de una contrasena
 echo -n "tu_password" | sha256sum | awk '{print $1}'
 ```
 
 Actualizar `passsha256` para cada usuario:
-- `authelia` (service user)
+- `svc-localis` (service user)
 - `admin`
 - `operador`
 - `tecnico`
@@ -67,7 +63,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ### 6. Verificar servicios
 
 ```bash
-# Verificar que todos los contenedores estén corriendo
+# Verificar que todos los contenedores esten corriendo
 docker compose -f docker-compose.prod.yml ps
 
 # Verificar logs
@@ -78,26 +74,21 @@ docker compose -f docker-compose.prod.yml logs -f
 
 ```bash
 # Health checks
-curl -k https://app.workflows.cl/users
-curl -k https://auth.workflows.cl/api/health
+curl -k https://app.workflows.cl/health
+curl -k -X POST https://app.workflows.cl/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"employee_number": "1001", "password": "<password>"}'
 ```
 
-### 8. Configurar TOTP (MFA)
-
-1. Acceder a `https://auth.workflows.cl`
-2. Login con `admin` / `<password>`
-3. Seguir instrucciones para configurar Authenticator app
-4. Repetir para cada usuario
-
-## Comandos útiles
+## Comandos utiles
 
 ```bash
 # Ver logs de un servicio
-docker compose -f docker-compose.prod.yml logs -f authelia
+docker compose -f docker-compose.prod.yml logs -f go-backend
 docker compose -f docker-compose.prod.yml logs -f traefik
 
 # Reiniciar un servicio
-docker compose -f docker-compose.prod.yml restart authelia
+docker compose -f docker-compose.prod.yml restart go-backend
 
 # Parar todo
 docker compose -f docker-compose.prod.yml down
@@ -108,37 +99,26 @@ docker compose -f docker-compose.prod.yml down -v
 
 ## Variables de entorno
 
-| Variable | Descripción | Ejemplo |
+| Variable | Descripcion | Ejemplo |
 |----------|-------------|---------|
 | `POSTGRES_PASSWORD` | Password de PostgreSQL | `openssl rand -base64 32` |
-| `FSM_API_PASSWORD` | Password del usuario `fsm_api` | `openssl rand -base64 32` |
-| `PGRST_JWT_SECRET` | Secret para JWT signing | `openssl rand -base64 32` |
-| `AUTHELIA_SESSION_SECRET` | Secret para sesiones Authelia | 32+ chars |
-| `AUTHELIA_STORAGE_ENCRYPTION_KEY` | Key para storage Authelia | 32+ chars |
-| `AUTHELIA_JWT_SECRET` | Secret para JWT de Authelia | 32+ chars |
-| `AUTHELIA_SESSION_DOMAIN` | Dominio para cookies | `workflows.cl` |
-| `AUTHELIA_AUTHELIA_URL` | URL de Authelia | `https://auth.workflows.cl` |
-| `AUTHELIA_DEFAULT_REDIRECT` | URL de redirect post-login | `https://app.workflows.cl` |
+| `JWT_SECRET` | Secret para JWT signing (HS256) | `openssl rand -base64 32` |
+| `LDAP_SERVICE_PASSWORD` | Password del service user LDAP | `openssl rand -base64 32` |
 
 ## Troubleshooting
 
-### Authelia no inicia
+### Go Backend no inicia
 ```bash
-docker compose -f docker-compose.prod.yml logs authelia
-# Verificar que GLAuth esté corriendo
+docker compose -f docker-compose.prod.yml logs go-backend
+# Verificar que GLAuth este corriendo
 docker compose -f docker-compose.prod.yml ps glauth
+# Verificar que PostgreSQL este corriendo
+docker compose -f docker-compose.prod.yml ps postgres
 ```
 
 ### Traefik no obtiene certificados TLS
 ```bash
-# Verificar que los puertos 80/443 estén abiertos
+# Verificar que los puertos 80/443 esten abiertos
 # Verificar DNS apunta al servidor
 nslookup app.workflows.cl
-nslookup auth.workflows.cl
-```
-
-### PostgREST no responde
-```bash
-# Verificar conexión a PostgreSQL
-docker compose -f docker-compose.prod.yml exec postgres psql -U fsm_admin -d fsm_fsm -c "\dt"
 ```

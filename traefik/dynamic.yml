@@ -1,91 +1,46 @@
 # ============================================================================
 # dynamic.yml — Traefik v3 dynamic configuration
-# API routes → JWT auth → PostgREST
-# Browser routes → Authelia forwardAuth
+# API routes → Go Backend (direct PostgreSQL, no PostgREST)
+# Frontend → Next.js
 # ============================================================================
 
 http:
-  middlewares:
-    # === API: JWT auth ===
-    jwt-auth:
-      forwardAuth:
-        address: "http://jwt-validator:8080"
-        authResponseHeaders:
-          - "X-User-ID"
-          - "X-User-Role"
-    strip-auth-header:
-      headers:
-        customRequestHeaders:
-          Authorization: ""
-
-    # === Browser: Authelia ===
-    authelia:
-      forwardAuth:
-        address: "http://authelia:9091/api/authz/forward-auth"
-        trustForwardHeader: true
-        authResponseHeaders:
-          - "Remote-User"
-          - "Remote-Groups"
-          - "Remote-Email"
-          - "Remote-Name"
-
   routers:
-    # API routes → JWT auth → PostgREST
-    api:
-      rule: >-
-        PathPrefix(`/users`) ||
-        PathPrefix(`/tech_roles`) ||
-        PathPrefix(`/visits`) ||
-        PathPrefix(`/daily_plans`) ||
-        PathPrefix(`/partner_agreements`) ||
-        PathPrefix(`/customers`) ||
-        PathPrefix(`/properties`) ||
-        PathPrefix(`/vehicles`) ||
-        PathPrefix(`/rpc/`) ||
-        PathPrefix(`/plan_audit_log`) ||
-        PathPrefix(`/partner_service_types`) ||
-        PathPrefix(`/visit_types`) ||
-        PathPrefix(`/measurement_types`) ||
-        PathPrefix(`/photo_findings`) ||
-        PathPrefix(`/vehicle_types`) ||
-        PathPrefix(`/route_types`) ||
-        PathPrefix(`/property_types`) ||
-        PathPrefix(`/certifications`) ||
-        PathPrefix(`/rejection_reasons`) ||
-        PathPrefix(`/pre_visit_results`)
-      service: "postgrest"
-      entryPoints:
-        - "web"
-      middlewares:
-        - "jwt-auth"
-        - "strip-auth-header"
-
-    # Authelia portal (direct access for login)
-    authelia:
-      rule: "PathPrefix(`/authelia`)"
-      service: "authelia"
-      entryPoints:
-        - "web"
-
-    # Browser routes → Authelia forwardAuth
-    browser:
+    # Frontend → Next.js (catch-all)
+    frontend:
       rule: "PathPrefix(`/`)"
-      service: "authelia-portal"
+      service: "frontend"
       entryPoints:
         - "web"
-      middlewares:
-        - "authelia"
+
+    # API routes → Go Backend
+    api:
+      rule: "PathPrefix(`/api`)"
+      service: "go-backend"
+      entryPoints:
+        - "web"
+
+    # Auth routes → Go Backend
+    auth:
+      rule: "PathPrefix(`/auth`)"
+      service: "go-backend"
+      entryPoints:
+        - "web"
+
+    # Health check
+    health:
+      rule: "PathPrefix(`/health`)"
+      service: "go-backend"
+      entryPoints:
+        - "web"
 
   services:
-    postgrest:
+    frontend:
       loadBalancer:
         servers:
-          - url: "http://postgrest:3000"
-    authelia:
+          - url: "http://frontend:3000"
+
+    go-backend:
       loadBalancer:
         servers:
-          - url: "http://authelia:9091"
-    authelia-portal:
-      loadBalancer:
-        servers:
-          - url: "http://authelia:9091"
+          - url: "http://go-backend:8080"

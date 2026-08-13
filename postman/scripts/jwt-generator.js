@@ -36,9 +36,9 @@
     }
   }
 
-  var secret = pm.environment.get('PGRST_JWT_SECRET');
+  var secret = pm.environment.get('JWT_SECRET');
   if (!secret) {
-    console.error('PGRST_JWT_SECRET not set in environment');
+    console.error('JWT_SECRET not set in environment');
     return;
   }
 

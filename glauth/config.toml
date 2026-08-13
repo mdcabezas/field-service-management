@@ -1,6 +1,6 @@
 # ============================================================================
 # GLAuth config — FSM dev stack
-# LDAP server for Authelia + Backend Go
+# LDAP server for Go Backend
 # WARNING: DEV ONLY — use stronger passwords in production
 # ============================================================================
 
@@ -11,21 +11,24 @@
 
 [ldap]
   enabled = true
-  listen = "0.0.0.0:389"
+  listen = "0.0.0.0:3893"
 
 [ldaps]
   enabled = false
 
 # ============================================================================
-# Service user for Authelia (bind DN)
+# Service user for Go Backend (bind DN)
 # ============================================================================
 [[users]]
-  name = "authelia"
+  name = "svc-localis"
   uidnumber = 1000
   primarygroup = 5001
-  passsha256 = "5f636555b132fd5d825287dab7d1dff5ca3879d88f2c49ff7be13026f19abaad"
-  mail = "authelia@workflows.cl"
+  passsha256 = "89ebdc59dc9535d0c7710e6e8dbadb466801c5d6905bc5d4b3553ccf6d6eb084"
+  mail = "svc-localis@workflows.cl"
   disabled = false
+    [[users.capabilities]]
+    action = "search"
+    object = "*"
 
 # ============================================================================
 # App users — employee_number = uidnumber
@@ -36,7 +39,7 @@
   name = "admin"
   uidnumber = 1001
   primarygroup = 5002
-  passsha256 = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9"
+  passsha256 = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
   mail = "admin@workflows.cl"
   disabled = false
 
@@ -45,7 +48,7 @@
   name = "operador"
   uidnumber = 1002
   primarygroup = 5003
-  passsha256 = "1725165c9a0b3698a3d01016e0d8205155820b8d7f21835ca64c0f81c728d880"
+  passsha256 = "e257b110509437aaceddbd342bc63d05e74221d6bac056ed279d752ff8d3afcb"
   mail = "operador@workflows.cl"
   disabled = false
 
@@ -54,15 +57,15 @@
   name = "tecnico"
   uidnumber = 1003
   primarygroup = 5004
-  passsha256 = "2bd5100f475915a8990f6a4b342ac161e5eb754581d81a4b6462843e63601ada"
+  passsha256 = "0e949b5f9de9cfa8437d0beeca8d8c96a6b578caa889fd6659e85b7dff22e59b"
   mail = "tecnico@workflows.cl"
   disabled = false
 
 # ============================================================================
-# Groups — Authelia maps groups → roles
+# Groups
 # ============================================================================
 
-# Service accounts (Authelia bind)
+# Service accounts (Go Backend bind)
 [[groups]]
   name = "svcaccounts"
   gidnumber = 5001

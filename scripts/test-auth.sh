@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# test-auth.sh — Test LDAP bind (GLAuth) + token generation (Authelia)
+# test-auth.sh — Test LDAP bind (GLAuth) + JWT generation (Go Backend)
 # Uso: ./scripts/test-auth.sh <user> <password>
 # ============================================================================
 

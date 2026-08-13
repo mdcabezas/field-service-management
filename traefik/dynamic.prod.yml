@@ -1,100 +1,40 @@
 # ============================================================================
 # dynamic.prod.yml — Traefik v3 dynamic configuration (PRODUCTION)
-# API routes → JWT auth → PostgREST
-# Browser routes → Authelia forwardAuth
+# API routes → Go Backend (direct PostgreSQL, no PostgREST)
 # Domain: workflows.cl
 # ============================================================================
 
 http:
-  middlewares:
-    # === API: JWT auth ===
-    jwt-auth:
-      forwardAuth:
-        address: "http://jwt-validator:8080"
-        authResponseHeaders:
-          - "X-User-ID"
-          - "X-User-Role"
-    strip-auth-header:
-      headers:
-        customRequestHeaders:
-          Authorization: ""
-
-    # === Browser: Authelia ===
-    authelia:
-      forwardAuth:
-        address: "http://authelia:9091/api/authz/forward-auth"
-        trustForwardHeader: true
-        authResponseHeaders:
-          - "Remote-User"
-          - "Remote-Groups"
-          - "Remote-Email"
-          - "Remote-Name"
-
   routers:
-    # API routes → JWT auth → PostgREST
+    # API routes → Go Backend
     api:
-      rule: >-
-        Host(`app.workflows.cl`) && (
-          PathPrefix(`/users`) ||
-          PathPrefix(`/tech_roles`) ||
-          PathPrefix(`/visits`) ||
-          PathPrefix(`/daily_plans`) ||
-          PathPrefix(`/partner_agreements`) ||
-          PathPrefix(`/customers`) ||
-          PathPrefix(`/properties`) ||
-          PathPrefix(`/vehicles`) ||
-          PathPrefix(`/rpc/`) ||
-          PathPrefix(`/plan_audit_log`) ||
-          PathPrefix(`/partner_service_types`) ||
-          PathPrefix(`/visit_types`) ||
-          PathPrefix(`/measurement_types`) ||
-          PathPrefix(`/photo_findings`) ||
-          PathPrefix(`/vehicle_types`) ||
-          PathPrefix(`/route_types`) ||
-          PathPrefix(`/property_types`) ||
-          PathPrefix(`/certifications`) ||
-          PathPrefix(`/rejection_reasons`) ||
-          PathPrefix(`/pre_visit_results`)
-        )
-      service: "postgrest"
-      entryPoints:
-        - "websecure"
-      middlewares:
-        - "jwt-auth"
-        - "strip-auth-header"
-      tls:
-        certResolver: letsencrypt
-
-    # Authelia portal
-    authelia:
-      rule: "Host(`auth.workflows.cl`)"
-      service: "authelia"
+      rule: "Host(`app.workflows.cl`) && PathPrefix(`/api`)"
+      service: "go-backend"
       entryPoints:
         - "websecure"
       tls:
         certResolver: letsencrypt
 
-    # Browser routes → Authelia forwardAuth
-    browser:
-      rule: "Host(`app.workflows.cl`)"
-      service: "authelia-portal"
+    # Auth routes → Go Backend
+    auth:
+      rule: "Host(`app.workflows.cl`) && PathPrefix(`/auth`)"
+      service: "go-backend"
       entryPoints:
         - "websecure"
-      middlewares:
-        - "authelia"
+      tls:
+        certResolver: letsencrypt
+
+    # Health check
+    health:
+      rule: "Host(`app.workflows.cl`) && PathPrefix(`/health`)"
+      service: "go-backend"
+      entryPoints:
+        - "websecure"
       tls:
         certResolver: letsencrypt
 
   services:
-    postgrest:
+    go-backend:
       loadBalancer:
         servers:
-          - url: "http://postgrest:3000"
-    authelia:
-      loadBalancer:
-        servers:
-          - url: "http://authelia:9091"
-    authelia-portal:
-      loadBalancer:
-        servers:
-          - url: "http://authelia:9091"
+          - url: "http://go-backend:8080"
