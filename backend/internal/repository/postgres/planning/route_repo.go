@@ -24,10 +24,11 @@ func NewRouteRepo(pool *pgxpool.Pool) *RouteRepo {
 func (r *RouteRepo) GetByID(ctx context.Context, id uuid.UUID) (*planning.Route, error) {
 	var rt planning.Route
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, type, date, daily_plan_id, notes, status, created_at
-		 FROM planning.routes
-		 WHERE id = $1`, id,
-	).Scan(&rt.ID, &rt.Type, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt)
+		`SELECT r.id, r.type, rt.name as type_name, r.date, r.daily_plan_id, r.notes, r.status, r.created_at
+		 FROM planning.routes r
+		 LEFT JOIN planning.route_types rt ON r.type = rt.id
+		 WHERE r.id = $1`, id,
+	).Scan(&rt.ID, &rt.Type, &rt.TypeName, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "route", ID: id.String()}
 	}
@@ -45,9 +46,10 @@ func (r *RouteRepo) List(ctx context.Context, limit, offset int) (*repository.Li
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, type, date, daily_plan_id, notes, status, created_at
-		 FROM planning.routes
-		 ORDER BY date DESC
+		`SELECT r.id, r.type, rt.name as type_name, r.date, r.daily_plan_id, r.notes, r.status, r.created_at
+		 FROM planning.routes r
+		 LEFT JOIN planning.route_types rt ON r.type = rt.id
+		 ORDER BY r.date DESC
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -58,7 +60,7 @@ func (r *RouteRepo) List(ctx context.Context, limit, offset int) (*repository.Li
 	items := make([]planning.Route, 0)
 	for rows.Next() {
 		var rt planning.Route
-		if err := rows.Scan(&rt.ID, &rt.Type, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt); err != nil {
+		if err := rows.Scan(&rt.ID, &rt.Type, &rt.TypeName, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan route: %w", err)
 		}
 		items = append(items, rt)
@@ -72,10 +74,11 @@ func (r *RouteRepo) List(ctx context.Context, limit, offset int) (*repository.Li
 
 func (r *RouteRepo) ListByPlan(ctx context.Context, planID uuid.UUID) ([]planning.Route, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, type, date, daily_plan_id, notes, status, created_at
-		 FROM planning.routes
-		 WHERE daily_plan_id = $1
-		 ORDER BY date`, planID,
+		`SELECT r.id, r.type, rt.name as type_name, r.date, r.daily_plan_id, r.notes, r.status, r.created_at
+		 FROM planning.routes r
+		 LEFT JOIN planning.route_types rt ON r.type = rt.id
+		 WHERE r.daily_plan_id = $1
+		 ORDER BY r.date`, planID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list routes by plan: %w", err)
@@ -85,7 +88,7 @@ func (r *RouteRepo) ListByPlan(ctx context.Context, planID uuid.UUID) ([]plannin
 	items := make([]planning.Route, 0)
 	for rows.Next() {
 		var rt planning.Route
-		if err := rows.Scan(&rt.ID, &rt.Type, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt); err != nil {
+		if err := rows.Scan(&rt.ID, &rt.Type, &rt.TypeName, &rt.Date, &rt.DailyPlanID, &rt.Notes, &rt.Status, &rt.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan route: %w", err)
 		}
 		items = append(items, rt)

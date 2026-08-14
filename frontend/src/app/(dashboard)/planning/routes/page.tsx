@@ -11,7 +11,8 @@ import type { Route } from "@/types/api";
 
 const columns: ColumnDef<Route, unknown>[] = [
   {
-    accessorKey: "type",
+    accessorKey: "type_name",
+    accessorFn: (row) => row.type_name || row.type,
     header: "Tipo",
   },
   {

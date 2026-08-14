@@ -563,6 +563,7 @@ export interface DailyLoadEPP {
 export interface Route {
   id: string;
   type: string;
+  type_name?: string;
   date: string;
   daily_plan_id: string;
   notes?: string;
