@@ -2,29 +2,15 @@ package postgresinventory
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
 
-func testPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://fsm_admin:change_me_in_prod@localhost:5432/fsm_test?sslmode=disable"
-	}
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(func() { pool.Close() })
-	return pool
-}
-
 func TestVehicleTypeRepo_List(t *testing.T) {
 	ctx := context.Background()
-	pool := testPool(t)
+	pool := newPool(t)
 	repo := NewVehicleTypeRepo(pool)
 
 	result, err := repo.List(ctx)
@@ -52,7 +38,7 @@ func TestVehicleTypeRepo_List(t *testing.T) {
 
 func TestVehicleTypeRepo_GetByID(t *testing.T) {
 	ctx := context.Background()
-	pool := testPool(t)
+	pool := newPool(t)
 	repo := NewVehicleTypeRepo(pool)
 
 	// First list to get a valid ID
@@ -72,7 +58,7 @@ func TestVehicleTypeRepo_GetByID(t *testing.T) {
 
 func TestVehicleTypeRepo_GetByID_NotFound(t *testing.T) {
 	ctx := context.Background()
-	pool := testPool(t)
+	pool := newPool(t)
 	repo := NewVehicleTypeRepo(pool)
 
 	nonExistentID := uuid.New()

@@ -2,28 +2,14 @@ package postgresplanning
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
 
-func testPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://fsm_admin:change_me_in_prod@localhost:5432/fsm_test?sslmode=disable"
-	}
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(func() { pool.Close() })
-	return pool
-}
-
 func TestRouteTypeRepo_List(t *testing.T) {
 	ctx := context.Background()
-	pool := testPool(t)
+	pool := newPool(t)
 	repo := NewRouteTypeRepo(pool)
 
 	result, err := repo.List(ctx)
