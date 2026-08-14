@@ -108,3 +108,16 @@ func TestVisitAssignment_ListByVisit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, got)
 }
+
+func TestVisitAssignmentService_GetByID(t *testing.T) {
+	ctx := context.Background()
+	svc, assignmentRepo, _, _, _ := newAssignmentService(t)
+
+	id := uuid.New()
+	expected := &operations.VisitAssignment{ID: id, VisitID: uuid.New(), TechID: uuid.New()}
+	assignmentRepo.On("GetByID", ctx, id).Return(expected, nil).Once()
+
+	got, err := svc.GetByID(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}

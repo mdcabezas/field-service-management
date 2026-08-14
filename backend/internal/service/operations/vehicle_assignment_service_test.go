@@ -10,10 +10,13 @@ import (
 	"localis-backend/internal/model/inventory"
 	"localis-backend/internal/model/operations"
 	"localis-backend/internal/model/shared"
+	"localis-backend/internal/repository"
 	"localis-backend/internal/service"
 	"localis-backend/internal/service/core"
 	"localis-backend/internal/testutil/mocks"
 )
+
+func strPtr(s string) *string { return &s }
 
 type vehicleSvcMocks struct {
 	vaRepo    *mocks.VehicleAssignmentRepository
@@ -106,4 +109,62 @@ func TestVehicleReturn_NotFound(t *testing.T) {
 	err := m.svc.Return(ctx, id, 100)
 	var nf *service.NotFoundError
 	require.ErrorAs(t, err, &nf)
+}
+
+func TestVehicleAssignmentService_GetByID(t *testing.T) {
+	ctx := context.Background()
+	m := newVehicleService(t)
+
+	id := uuid.New()
+	expected := &operations.VehicleAssignment{ID: id, VehicleID: uuid.New()}
+	m.vaRepo.On("GetByID", ctx, id).Return(expected, nil).Once()
+
+	got, err := m.svc.GetByID(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+func TestVehicleAssignmentService_List(t *testing.T) {
+	ctx := context.Background()
+	m := newVehicleService(t)
+
+	expected := &repository.ListResult[operations.VehicleAssignment]{
+		Items: []operations.VehicleAssignment{{ID: uuid.New(), VehicleID: uuid.New()}},
+		Total: 1,
+	}
+	m.vaRepo.On("List", ctx, 20, 0).Return(expected, nil).Once()
+
+	got, err := m.svc.List(ctx, 20, 0)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+func TestVehicleAssignmentService_Update(t *testing.T) {
+	ctx := context.Background()
+	m := newVehicleService(t)
+
+	id := uuid.New()
+	existing := &operations.VehicleAssignment{ID: id, VehicleID: uuid.New()}
+	updated := &operations.VehicleAssignment{ID: id, VehicleID: uuid.New(), Notes: strPtr("updated")}
+
+	m.vaRepo.On("GetByID", ctx, id).Return(existing, nil).Once()
+	m.vaRepo.On("Update", ctx, id, updated).Return(nil).Once()
+	m.auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
+
+	err := m.svc.Update(ctx, id, updated)
+	require.NoError(t, err)
+}
+
+func TestVehicleAssignmentService_Delete(t *testing.T) {
+	ctx := context.Background()
+	m := newVehicleService(t)
+
+	id := uuid.New()
+	existing := &operations.VehicleAssignment{ID: id}
+	m.vaRepo.On("GetByID", ctx, id).Return(existing, nil).Once()
+	m.vaRepo.On("Delete", ctx, id).Return(nil).Once()
+	m.auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
+
+	err := m.svc.Delete(ctx, id)
+	require.NoError(t, err)
 }

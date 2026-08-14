@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"localis-backend/internal/model/operations"
 	"localis-backend/internal/model/shared"
+	"localis-backend/internal/repository"
 	"localis-backend/internal/service"
 	"localis-backend/internal/service/core"
 	"localis-backend/internal/testutil/mocks"
@@ -423,4 +424,19 @@ func TestDelete_NotFound(t *testing.T) {
 	err := m.service.Delete(ctx, id)
 	var nf *service.NotFoundError
 	require.ErrorAs(t, err, &nf)
+}
+
+func TestVisitService_List(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+
+	expected := &repository.ListResult[operations.Visit]{
+		Items: []operations.Visit{*newVisitFixture(uuid.New(), shared.VisitStatusScheduled)},
+		Total: 1,
+	}
+	m.visitRepo.On("List", ctx, 20, 0).Return(expected, nil).Once()
+
+	got, err := m.service.List(ctx, 20, 0)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
 }

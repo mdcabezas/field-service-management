@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"localis-backend/internal/model/operations"
 	"localis-backend/internal/model/shared"
+	"localis-backend/internal/repository"
 	"localis-backend/internal/service"
 	"localis-backend/internal/service/core"
 	"localis-backend/internal/testutil/mocks"
@@ -88,4 +89,59 @@ func TestReport_Delete_NotFound(t *testing.T) {
 	err := svc.Delete(ctx, id)
 	var nf *service.NotFoundError
 	require.ErrorAs(t, err, &nf)
+}
+
+func TestReportService_GetByID(t *testing.T) {
+	ctx := context.Background()
+	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+
+	id := uuid.New()
+	expected := &operations.VisitReport{ID: id, VisitID: uuid.New(), Source: shared.ReportSourceSystem, RecordedAt: time.Now()}
+	visitReportRepo.On("GetByID", ctx, id).Return(expected, nil).Once()
+
+	got, err := svc.GetByID(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+func TestReportService_List(t *testing.T) {
+	ctx := context.Background()
+	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+
+	expected := &repository.ListResult[operations.VisitReport]{
+		Items: []operations.VisitReport{{ID: uuid.New(), VisitID: uuid.New()}},
+		Total: 1,
+	}
+	visitReportRepo.On("List", ctx, 20, 0).Return(expected, nil).Once()
+
+	got, err := svc.List(ctx, 20, 0)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+func TestReportService_ListByVisit(t *testing.T) {
+	ctx := context.Background()
+	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+
+	visitID := uuid.New()
+	expected := []operations.VisitReport{{ID: uuid.New(), VisitID: visitID}}
+	visitReportRepo.On("ListByVisit", ctx, visitID).Return(expected, nil).Once()
+
+	got, err := svc.ListByVisit(ctx, visitID)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+}
+
+func TestReportService_Delete_Success(t *testing.T) {
+	ctx := context.Background()
+	svc, visitReportRepo, _, _, _, auditRepo := newReportService(t)
+
+	id := uuid.New()
+	report := &operations.VisitReport{ID: id}
+	visitReportRepo.On("GetByID", ctx, id).Return(report, nil).Once()
+	visitReportRepo.On("Delete", ctx, id).Return(nil).Once()
+	auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
+
+	err := svc.Delete(ctx, id)
+	require.NoError(t, err)
 }
