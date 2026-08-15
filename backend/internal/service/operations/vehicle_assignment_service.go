@@ -206,8 +206,48 @@ func (s *VehicleAssignmentService) Delete(ctx context.Context, id uuid.UUID) err
 		return service.HandleRepoGetByIDError(err, "vehicle_assignment", id.String())
 	}
 
+	vehicleID := old.VehicleID
+
 	if err := s.vaRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete vehicle assignment: %w", err)
+	}
+
+	if s.vPool != nil {
+		tx, err := s.vPool.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("start transaction: %w", err)
+		}
+		committed := false
+		defer func() {
+			if !committed {
+				if err := tx.Rollback(ctx); err != nil {
+					slog.Warn("transaction rollback failed", "error", err)
+				}
+			}
+		}()
+
+		vehicle, err := s.getVehicleForUpdate(ctx, tx, vehicleID)
+		if err != nil {
+			return fmt.Errorf("get vehicle for update: %w", err)
+		}
+		vehicle.Status = shared.VehicleStatusAvailable
+		if err := s.updateVehicleInTx(ctx, tx, vehicleID, vehicle); err != nil {
+			return fmt.Errorf("update vehicle status in tx: %w", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit transaction: %w", err)
+		}
+		committed = true
+	} else {
+		vehicle, err := s.vRepo.GetByID(ctx, vehicleID)
+		if err != nil {
+			return service.HandleRepoGetByIDError(err, "vehicle", vehicleID.String())
+		}
+		vehicle.Status = shared.VehicleStatusAvailable
+		if err := s.vRepo.Update(ctx, vehicleID, vehicle); err != nil {
+			return fmt.Errorf("update vehicle status: %w", err)
+		}
 	}
 
 	if err := s.audit.RecordChange(ctx, shared.AuditEntityTypeVehicleAssignment, id, shared.AuditActionDelete, old, nil, nil); err != nil {

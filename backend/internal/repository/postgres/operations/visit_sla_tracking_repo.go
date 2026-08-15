@@ -24,11 +24,17 @@ func NewVisitSLATrackingRepo(pool *pgxpool.Pool) *VisitSLATrackingRepo {
 func (r *VisitSLATrackingRepo) GetByID(ctx context.Context, id uuid.UUID) (*operations.VisitSLATracking, error) {
 	var t operations.VisitSLATracking
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, visit_id, sla_id, requested_at, responded_at, resolved_at,
-		        response_time_hours, resolution_time_hours, meets_response_sla, meets_resolution_sla, created_at
-		 FROM operations.visit_sla_trackings
-		 WHERE id = $1`, id,
-	).Scan(&t.ID, &t.VisitID, &t.SLAID, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
+		`SELECT vst.id, vst.visit_id, vst.sla_id,
+		        CONCAT(COALESCE(vt.name, 'Visita'), ' - ', TO_CHAR(vst.created_at, 'DD/MM/YYYY')) AS visit_label,
+		        COALESCE(sla.name, '') AS sla_name,
+		        vst.requested_at, vst.responded_at, vst.resolved_at,
+		        vst.response_time_hours, vst.resolution_time_hours, vst.meets_response_sla, vst.meets_resolution_sla, vst.created_at
+		 FROM operations.visit_sla_trackings vst
+		 LEFT JOIN operations.visits v ON v.id = vst.visit_id
+		 LEFT JOIN operations.visit_types vt ON vt.id = v.type
+		 LEFT JOIN partners.slas sla ON sla.id = vst.sla_id
+		 WHERE vst.id = $1`, id,
+	).Scan(&t.ID, &t.VisitID, &t.SLAID, &t.VisitLabel, &t.SLAName, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
 		&t.ResponseTimeHours, &t.ResolutionTimeHours, &t.MeetsResponseSLA, &t.MeetsResolutionSLA, &t.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "visit_sla_tracking", ID: id.String()}
@@ -41,11 +47,17 @@ func (r *VisitSLATrackingRepo) GetByID(ctx context.Context, id uuid.UUID) (*oper
 
 func (r *VisitSLATrackingRepo) ListByVisit(ctx context.Context, visitID uuid.UUID) ([]operations.VisitSLATracking, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, visit_id, sla_id, requested_at, responded_at, resolved_at,
-		        response_time_hours, resolution_time_hours, meets_response_sla, meets_resolution_sla, created_at
-		 FROM operations.visit_sla_trackings
-		 WHERE visit_id = $1
-		 ORDER BY created_at`, visitID,
+		`SELECT vst.id, vst.visit_id, vst.sla_id,
+		        CONCAT(COALESCE(vt.name, 'Visita'), ' - ', TO_CHAR(vst.created_at, 'DD/MM/YYYY')) AS visit_label,
+		        COALESCE(sla.name, '') AS sla_name,
+		        vst.requested_at, vst.responded_at, vst.resolved_at,
+		        vst.response_time_hours, vst.resolution_time_hours, vst.meets_response_sla, vst.meets_resolution_sla, vst.created_at
+		 FROM operations.visit_sla_trackings vst
+		 LEFT JOIN operations.visits v ON v.id = vst.visit_id
+		 LEFT JOIN operations.visit_types vt ON vt.id = v.type
+		 LEFT JOIN partners.slas sla ON sla.id = vst.sla_id
+		 WHERE vst.visit_id = $1
+		 ORDER BY vst.created_at`, visitID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list visit sla trackings by visit: %w", err)
@@ -55,7 +67,7 @@ func (r *VisitSLATrackingRepo) ListByVisit(ctx context.Context, visitID uuid.UUI
 	items := make([]operations.VisitSLATracking, 0)
 	for rows.Next() {
 		var t operations.VisitSLATracking
-		if err := rows.Scan(&t.ID, &t.VisitID, &t.SLAID, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
+		if err := rows.Scan(&t.ID, &t.VisitID, &t.SLAID, &t.VisitLabel, &t.SLAName, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
 			&t.ResponseTimeHours, &t.ResolutionTimeHours, &t.MeetsResponseSLA, &t.MeetsResolutionSLA, &t.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan visit sla tracking: %w", err)
 		}
@@ -107,10 +119,16 @@ func (r *VisitSLATrackingRepo) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *VisitSLATrackingRepo) List(ctx context.Context, limit, offset int) (*repository.ListResult[operations.VisitSLATracking], error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, visit_id, sla_id, requested_at, responded_at, resolved_at,
-		        response_time_hours, resolution_time_hours, meets_response_sla, meets_resolution_sla, created_at
-		 FROM operations.visit_sla_trackings
-		 ORDER BY created_at DESC
+		`SELECT vst.id, vst.visit_id, vst.sla_id,
+		        CONCAT(COALESCE(vt.name, 'Visita'), ' - ', TO_CHAR(vst.created_at, 'DD/MM/YYYY')) AS visit_label,
+		        COALESCE(sla.name, '') AS sla_name,
+		        vst.requested_at, vst.responded_at, vst.resolved_at,
+		        vst.response_time_hours, vst.resolution_time_hours, vst.meets_response_sla, vst.meets_resolution_sla, vst.created_at
+		 FROM operations.visit_sla_trackings vst
+		 LEFT JOIN operations.visits v ON v.id = vst.visit_id
+		 LEFT JOIN operations.visit_types vt ON vt.id = v.type
+		 LEFT JOIN partners.slas sla ON sla.id = vst.sla_id
+		 ORDER BY vst.created_at DESC
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -121,7 +139,7 @@ func (r *VisitSLATrackingRepo) List(ctx context.Context, limit, offset int) (*re
 	items := make([]operations.VisitSLATracking, 0)
 	for rows.Next() {
 		var t operations.VisitSLATracking
-		if err := rows.Scan(&t.ID, &t.VisitID, &t.SLAID, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
+		if err := rows.Scan(&t.ID, &t.VisitID, &t.SLAID, &t.VisitLabel, &t.SLAName, &t.RequestedAt, &t.RespondedAt, &t.ResolvedAt,
 			&t.ResponseTimeHours, &t.ResolutionTimeHours, &t.MeetsResponseSLA, &t.MeetsResolutionSLA, &t.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan visit sla tracking: %w", err)
 		}

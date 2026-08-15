@@ -382,6 +382,7 @@ type ReportImageRepository interface {
 	ListByReport(ctx context.Context, reportID uuid.UUID) ([]operations.ReportImage, error)
 	Create(ctx context.Context, img *operations.ReportImage) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	DeleteByReport(ctx context.Context, reportID uuid.UUID) error
 }
 
 type ReportEntryRepository interface {
@@ -389,6 +390,7 @@ type ReportEntryRepository interface {
 	ListByReport(ctx context.Context, reportID uuid.UUID) ([]operations.ReportEntry, error)
 	Create(ctx context.Context, entry *operations.ReportEntry) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	DeleteByReport(ctx context.Context, reportID uuid.UUID) error
 }
 
 type VehicleAssignmentRepository interface {
@@ -445,5 +447,13 @@ type ReportTemplateRepository interface {
 	List(ctx context.Context, limit, offset int) (*ListResult[shared.ReportTemplate], error)
 	Create(ctx context.Context, tmpl *shared.ReportTemplate) error
 	Update(ctx context.Context, id uuid.UUID, tmpl *shared.ReportTemplate) error
+	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+type VisitTypeRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*operations.VisitType, error)
+	List(ctx context.Context, limit, offset int) (*ListResult[operations.VisitType], error)
+	Create(ctx context.Context, vt *operations.VisitType) error
+	Update(ctx context.Context, id uuid.UUID, vt *operations.VisitType) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }

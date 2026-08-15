@@ -2,10 +2,12 @@ package operationshandler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"localis-backend/internal/handler"
 	operationsmodel "localis-backend/internal/model/operations"
+	"localis-backend/internal/model/shared"
 	operationssvc "localis-backend/internal/service/operations"
 )
 
@@ -56,16 +58,20 @@ func (h *VisitReportHandler) ListByVisit(c *gin.Context) {
 }
 
 func (h *VisitReportHandler) Create(c *gin.Context) {
-	var body operationsmodel.VisitReport
+	var body operationsmodel.CreateReportRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		handler.RespondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if body.ReportTemplateID == nil {
-		handler.RespondError(c, http.StatusBadRequest, "report_template_id is required")
-		return
+	source := body.Source
+	if source == "" {
+		source = shared.ReportSourceSystem
 	}
-	report, err := h.svc.GenerateReport(c.Request.Context(), body.VisitID, *body.ReportTemplateID)
+	recordedAt := time.Now()
+	if body.RecordedAt != nil {
+		recordedAt = *body.RecordedAt
+	}
+	report, err := h.svc.GenerateReport(c.Request.Context(), body.VisitID, body.ReportTemplateID, source, recordedAt)
 	if err != nil {
 		handler.HandleServiceError(c, err)
 		return

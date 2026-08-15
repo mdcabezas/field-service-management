@@ -11,12 +11,18 @@ import type { VisitSLATracking } from "@/types/api";
 
 const columns: ColumnDef<VisitSLATracking, unknown>[] = [
   {
-    accessorKey: "visit_id",
+    accessorKey: "visit_label",
     header: "Visita",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.visit_label || row.original.visit_id}</span>
+    ),
   },
   {
-    accessorKey: "sla_id",
+    accessorKey: "sla_name",
     header: "SLA",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.sla_name || row.original.sla_id}</span>
+    ),
   },
   {
     accessorKey: "requested_at",
@@ -35,7 +41,8 @@ const columns: ColumnDef<VisitSLATracking, unknown>[] = [
       const date = new Date(row.original.resolved_at);
       return date.toLocaleDateString("es-CL");
     },
-  },];
+  },
+];
 
 export default function SLATrackingsPage() {
   const router = useRouter();
@@ -67,7 +74,7 @@ export default function SLATrackingsPage() {
         columns={columns}
         data={slaTrackings || []}
         searchPlaceholder="Buscar por SLA o visita..."
-        searchColumn="sla_id"
+        searchColumn="sla_name"
         onRowClick={handleRowClick}
       />
     </div>

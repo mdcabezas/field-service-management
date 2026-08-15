@@ -16,6 +16,7 @@ type Visit struct {
 	RouteID               *uuid.UUID           `json:"route_id,omitempty" db:"route_id"`
 	DailyPlanID           *uuid.UUID           `json:"daily_plan_id,omitempty" db:"daily_plan_id"`
 	Type                  uuid.UUID            `json:"type" db:"type"`
+	TypeName              *string              `json:"type_name,omitempty" db:"type_name"`
 	Status                shared.VisitStatus   `json:"status" db:"status" binding:"required"`
 	Priority              shared.VisitPriority `json:"priority" db:"priority" binding:"required"`
 	Source                *shared.VisitSource  `json:"source,omitempty" db:"source"`

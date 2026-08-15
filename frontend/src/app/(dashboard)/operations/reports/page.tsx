@@ -11,12 +11,14 @@ import type { VisitReport } from "@/types/api";
 
 const columns: ColumnDef<VisitReport, unknown>[] = [
   {
-    accessorKey: "report_template_id",
+    accessorKey: "report_template_name",
     header: "Plantilla",
+    cell: ({ row }) => row.original.report_template_name || "-",
   },
   {
-    accessorKey: "visit_id",
+    accessorKey: "visit_label",
     header: "Visita",
+    cell: ({ row }) => row.original.visit_label || "-",
   },
   {
     accessorKey: "source",
@@ -62,7 +64,7 @@ export default function ReportsPage() {
         columns={columns}
         data={reports || []}
         searchPlaceholder="Buscar por plantilla..."
-        searchColumn="report_template_id"
+        searchColumn="report_template_name"
         onRowClick={handleRowClick}
       />
     </div>

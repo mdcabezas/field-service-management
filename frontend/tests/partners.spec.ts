@@ -46,7 +46,8 @@ test.describe('Partners Module', () => {
   test('View partner detail page', async ({ page }) => {
     await gotoPage(page, MODULES.partners);
     await clickFirstRow(page);
-    await verifyPageTitle(page, 'Detalle de Socio');
+    await expect(page.locator('button[role="tab"]:has-text("SLAs")')).toBeVisible();
+    await expect(page.locator('button:has-text("Eliminar")')).toBeVisible();
   });
 
   test('Edit partner flow', async ({ page }) => {
@@ -54,7 +55,7 @@ test.describe('Partners Module', () => {
     await clickFirstRow(page);
 
     await fillInput(page, 'name', 'Updated Partner Name');
-    await page.click('button[type="submit"]:has-text("Guardar")');
+    await page.click('button[type="submit"]:has-text("Actualizar")');
     await waitForRedirect(page, '**/partners');
     await waitForToast(page, 'Socio actualizado');
   });
@@ -70,6 +71,7 @@ test.describe('Partners Module', () => {
     await waitForRedirect(page, '**/partners');
 
     await clickFirstRow(page);
+    await confirmDialog(page);
     await page.click('button:has-text("Eliminar")');
     await waitForRedirect(page, '**/partners');
     await waitForToast(page, 'Socio eliminado');

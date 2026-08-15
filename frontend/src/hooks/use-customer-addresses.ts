@@ -43,3 +43,19 @@ export function useDeleteCustomerAddress(customerId: string) {
     },
   });
 }
+
+export function useUpdateCustomerAddress(customerId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<CustomerAddress> }) =>
+      apiFetch<CustomerAddress>(`/api/customer-addresses/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_ADDRESSES_KEY(customerId) });
+    },
+  });
+}

@@ -61,13 +61,13 @@ export default function ReportDetailPage() {
               <label className="font-mono text-sm font-medium text-gray-500">
                 Visita
               </label>
-              <p className="font-mono">{report.visit_id}</p>
+              <p className="font-mono">{report.visit_label || report.visit_id}</p>
             </div>
             <div>
               <label className="font-mono text-sm font-medium text-gray-500">
                 Plantilla
               </label>
-              <p className="font-mono">{report.report_template_id}</p>
+              <p className="font-mono">{report.report_template_name || report.report_template_id}</p>
             </div>
             <div>
               <label className="font-mono text-sm font-medium text-gray-500">

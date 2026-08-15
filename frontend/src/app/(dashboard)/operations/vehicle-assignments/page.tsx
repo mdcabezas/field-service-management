@@ -11,8 +11,25 @@ import type { VehicleAssignment } from "@/types/api";
 
 const columns: ColumnDef<VehicleAssignment, unknown>[] = [
   {
-    accessorKey: "vehicle_id",
+    accessorKey: "vehicle_name",
     header: "Vehículo",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.vehicle_name || row.original.vehicle_id}</span>
+    ),
+  },
+  {
+    accessorKey: "daily_plan_name",
+    header: "Plan Diario",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.daily_plan_name || "-"}</span>
+    ),
+  },
+  {
+    accessorKey: "visit_label",
+    header: "Visita",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.visit_label || "-"}</span>
+    ),
   },
   {
     accessorKey: "departure_time",
@@ -31,7 +48,8 @@ const columns: ColumnDef<VehicleAssignment, unknown>[] = [
       const date = new Date(row.original.return_time);
       return date.toLocaleDateString("es-CL");
     },
-  },];
+  },
+];
 
 export default function VehicleAssignmentsPage() {
   const router = useRouter();
@@ -62,8 +80,8 @@ export default function VehicleAssignmentsPage() {
       <DataTable
         columns={columns}
         data={assignments || []}
-        searchPlaceholder="Buscar por vehículo o visita..."
-        searchColumn="vehicle_id"
+        searchPlaceholder="Buscar por vehículo..."
+        searchColumn="vehicle_name"
         onRowClick={handleRowClick}
       />
     </div>

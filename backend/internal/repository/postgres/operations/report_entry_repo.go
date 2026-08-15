@@ -82,3 +82,11 @@ func (r *ReportEntryRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (r *ReportEntryRepo) DeleteByReport(ctx context.Context, reportID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM operations.report_entries WHERE report_id = $1`, reportID)
+	if err != nil {
+		return fmt.Errorf("delete report entries by report: %w", err)
+	}
+	return nil
+}

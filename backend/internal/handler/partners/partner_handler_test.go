@@ -3,6 +3,7 @@ package partnershandler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -452,7 +453,8 @@ func TestSLAHandler_GetByID(t *testing.T) {
 func TestSLAHandler_ListByPartner(t *testing.T) {
 	repo := mocks.NewSLARepository(t)
 	pid := uuid.New()
-	repo.EXPECT().ListByPartner(mockCtx(), pid).Return([]partners.SLA{}, nil)
+	items := []partners.SLA{{ID: uuid.New(), Name: "SLA 1"}}
+	repo.EXPECT().ListByPartner(mockCtx(), pid).Return(items, nil)
 
 	r := newSLARouter(t, NewSLAHandler(repo))
 	w := httptest.NewRecorder()
@@ -460,6 +462,17 @@ func TestSLAHandler_ListByPartner(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
+	}
+
+	var body struct {
+		Items []partners.SLA `json:"items"`
+		Total int            `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Total != 1 || len(body.Items) != 1 {
+		t.Fatalf("expected 1 item, got total=%d items=%d", body.Total, len(body.Items))
 	}
 }
 

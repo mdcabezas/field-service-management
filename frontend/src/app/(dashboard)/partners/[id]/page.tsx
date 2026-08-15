@@ -3,6 +3,7 @@
 import { useRouter, useParams } from "next/navigation";
 import { usePartner, useDeletePartner } from "@/hooks/use-partners";
 import { PartnerForm } from "@/components/forms/partner-form";
+import { PartnerSLAsTable } from "@/components/partner/partner-slas-table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/auth-store";
@@ -75,9 +76,7 @@ export default function PartnerDetailPage() {
         </TabsContent>
 
         <TabsContent value="slas">
-          <div className="p-4 border-2 border-black">
-            <p className="font-mono text-gray-500">SLAs - Próximamente</p>
-          </div>
+          <PartnerSLAsTable partnerId={id} />
         </TabsContent>
       </Tabs>
     </div>

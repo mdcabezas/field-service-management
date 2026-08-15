@@ -160,9 +160,13 @@ func TestVehicleAssignmentService_Delete(t *testing.T) {
 	m := newVehicleService(t)
 
 	id := uuid.New()
-	existing := &operations.VehicleAssignment{ID: id}
+	vehicleID := uuid.New()
+	existing := &operations.VehicleAssignment{ID: id, VehicleID: vehicleID}
+	vehicle := &inventory.Vehicle{ID: vehicleID, Status: shared.VehicleStatusInUse}
 	m.vaRepo.On("GetByID", ctx, id).Return(existing, nil).Once()
 	m.vaRepo.On("Delete", ctx, id).Return(nil).Once()
+	m.vRepo.On("GetByID", ctx, vehicleID).Return(vehicle, nil).Once()
+	m.vRepo.On("Update", ctx, vehicleID, mock.AnythingOfType("*inventory.Vehicle")).Return(nil).Once()
 	m.auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
 
 	err := m.svc.Delete(ctx, id)

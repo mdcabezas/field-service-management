@@ -38,10 +38,15 @@ func (r *VisitAssignmentRepo) GetByID(ctx context.Context, id uuid.UUID) (*opera
 
 func (r *VisitAssignmentRepo) ListByVisit(ctx context.Context, visitID uuid.UUID) ([]operations.VisitAssignment, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, visit_id, tech_id, role_id, created_at
-		 FROM operations.visit_assignments
-		 WHERE visit_id = $1
-		 ORDER BY created_at`, visitID,
+		`SELECT va.id, va.visit_id, va.tech_id, va.role_id,
+		        COALESCE(t.name, '') AS tech_name,
+		        COALESCE(tr.name, '') AS role_name,
+		        va.created_at
+		 FROM operations.visit_assignments va
+		 LEFT JOIN customers.technicians t ON t.id = va.tech_id
+		 LEFT JOIN core.tech_roles tr ON tr.id = va.role_id
+		 WHERE va.visit_id = $1
+		 ORDER BY va.created_at`, visitID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list visit assignments by visit: %w", err)
@@ -51,7 +56,7 @@ func (r *VisitAssignmentRepo) ListByVisit(ctx context.Context, visitID uuid.UUID
 	items := make([]operations.VisitAssignment, 0)
 	for rows.Next() {
 		var a operations.VisitAssignment
-		if err := rows.Scan(&a.ID, &a.VisitID, &a.TechID, &a.RoleID, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.VisitID, &a.TechID, &a.RoleID, &a.TechName, &a.RoleName, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan visit assignment: %w", err)
 		}
 		items = append(items, a)

@@ -16,7 +16,7 @@ import (
 	"localis-backend/internal/testutil/mocks"
 )
 
-func newReportService(t *testing.T) (*ReportService, *mocks.VisitReportRepository, *mocks.ReportEntryRepository, *mocks.VisitPhotoRepository, *mocks.VisitMeasurementRepository, *mocks.CorePlanAuditLogRepository) {
+func newReportService(t *testing.T) (*ReportService, *mocks.VisitReportRepository, *mocks.ReportEntryRepository, *mocks.ReportImageRepository, *mocks.VisitPhotoRepository, *mocks.VisitMeasurementRepository, *mocks.CorePlanAuditLogRepository) {
 	t.Helper()
 	visitReportRepo := mocks.NewVisitReportRepository(t)
 	reportEntryRepo := mocks.NewReportEntryRepository(t)
@@ -26,29 +26,32 @@ func newReportService(t *testing.T) (*ReportService, *mocks.VisitReportRepositor
 	reportTmplRepo := mocks.NewReportTemplateRepository(t)
 	auditRepo := mocks.NewCorePlanAuditLogRepository(t)
 	svc := NewReportService(visitReportRepo, reportEntryRepo, reportImageRepo, visitPhotoRepo, visitMeasureRepo, reportTmplRepo, core.NewAuditService(auditRepo))
-	return svc, visitReportRepo, reportEntryRepo, visitPhotoRepo, visitMeasureRepo, auditRepo
+	return svc, visitReportRepo, reportEntryRepo, reportImageRepo, visitPhotoRepo, visitMeasureRepo, auditRepo
 }
 
 func TestGenerateReport(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, reportEntryRepo, _, _, auditRepo := newReportService(t)
+	svc, visitReportRepo, reportEntryRepo, _, _, _, auditRepo := newReportService(t)
 
 	visitID := uuid.New()
 	templateID := uuid.New()
+	source := shared.ReportSourceSystem
+	recordedAt := time.Now()
 
 	visitReportRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
 	reportEntryRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
 	auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
 
-	report, err := svc.GenerateReport(ctx, visitID, templateID)
+	report, err := svc.GenerateReport(ctx, visitID, templateID, source, recordedAt)
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, report.ID)
 	require.Equal(t, visitID, report.VisitID)
+	require.Equal(t, source, report.Source)
 }
 
 func TestFinalizeReport(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, reportEntryRepo, visitPhotoRepo, visitMeasureRepo, auditRepo := newReportService(t)
+	svc, visitReportRepo, reportEntryRepo, _, visitPhotoRepo, visitMeasureRepo, auditRepo := newReportService(t)
 
 	reportID := uuid.New()
 	report := &operations.VisitReport{ID: reportID, VisitID: uuid.New(), Source: shared.ReportSourceSystem, RecordedAt: time.Now()}
@@ -66,7 +69,7 @@ func TestFinalizeReport(t *testing.T) {
 
 func TestFinalizeReport_AlreadyFinalized(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, reportEntryRepo, _, _, _ := newReportService(t)
+	svc, visitReportRepo, reportEntryRepo, _, _, _, _ := newReportService(t)
 
 	reportID := uuid.New()
 	report := &operations.VisitReport{ID: reportID, VisitID: uuid.New(), Source: shared.ReportSourceSystem, RecordedAt: time.Now()}
@@ -81,7 +84,7 @@ func TestFinalizeReport_AlreadyFinalized(t *testing.T) {
 
 func TestReport_Delete_NotFound(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+	svc, visitReportRepo, _, _, _, _, _ := newReportService(t)
 
 	id := uuid.New()
 	visitReportRepo.On("GetByID", ctx, id).Return(nil, &service.NotFoundError{Resource: "visit_report", ID: id.String()}).Once()
@@ -93,7 +96,7 @@ func TestReport_Delete_NotFound(t *testing.T) {
 
 func TestReportService_GetByID(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+	svc, visitReportRepo, _, _, _, _, _ := newReportService(t)
 
 	id := uuid.New()
 	expected := &operations.VisitReport{ID: id, VisitID: uuid.New(), Source: shared.ReportSourceSystem, RecordedAt: time.Now()}
@@ -106,7 +109,7 @@ func TestReportService_GetByID(t *testing.T) {
 
 func TestReportService_List(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+	svc, visitReportRepo, _, _, _, _, _ := newReportService(t)
 
 	expected := &repository.ListResult[operations.VisitReport]{
 		Items: []operations.VisitReport{{ID: uuid.New(), VisitID: uuid.New()}},
@@ -121,7 +124,7 @@ func TestReportService_List(t *testing.T) {
 
 func TestReportService_ListByVisit(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, _, _, _, _ := newReportService(t)
+	svc, visitReportRepo, _, _, _, _, _ := newReportService(t)
 
 	visitID := uuid.New()
 	expected := []operations.VisitReport{{ID: uuid.New(), VisitID: visitID}}
@@ -134,11 +137,13 @@ func TestReportService_ListByVisit(t *testing.T) {
 
 func TestReportService_Delete_Success(t *testing.T) {
 	ctx := context.Background()
-	svc, visitReportRepo, _, _, _, auditRepo := newReportService(t)
+	svc, visitReportRepo, reportEntryRepo, reportImageRepo, _, _, auditRepo := newReportService(t)
 
 	id := uuid.New()
 	report := &operations.VisitReport{ID: id}
 	visitReportRepo.On("GetByID", ctx, id).Return(report, nil).Once()
+	reportEntryRepo.On("DeleteByReport", ctx, id).Return(nil).Once()
+	reportImageRepo.On("DeleteByReport", ctx, id).Return(nil).Once()
 	visitReportRepo.On("Delete", ctx, id).Return(nil).Once()
 	auditRepo.On("Create", ctx, mock.Anything).Return(nil).Once()
 

@@ -45,13 +45,13 @@ func NewReportService(
 	}
 }
 
-func (s *ReportService) GenerateReport(ctx context.Context, visitID, templateID uuid.UUID) (*operationsmodel.VisitReport, error) {
+func (s *ReportService) GenerateReport(ctx context.Context, visitID, templateID uuid.UUID, source shared.ReportSource, recordedAt time.Time) (*operationsmodel.VisitReport, error) {
 	report := &operationsmodel.VisitReport{
 		ID:               uuid.New(),
 		VisitID:          visitID,
 		ReportTemplateID: &templateID,
-		Source:           shared.ReportSourceSystem,
-		RecordedAt:       time.Now(),
+		Source:           source,
+		RecordedAt:       recordedAt,
 		CreatedAt:        time.Now(),
 	}
 
@@ -185,6 +185,13 @@ func (s *ReportService) Delete(ctx context.Context, id uuid.UUID) error {
 	report, err := s.visitReportRepo.GetByID(ctx, id)
 	if err != nil {
 		return service.HandleRepoGetByIDError(err, "visit_report", id.String())
+	}
+
+	if err := s.reportEntryRepo.DeleteByReport(ctx, id); err != nil {
+		return fmt.Errorf("delete report entries: %w", err)
+	}
+	if err := s.reportImageRepo.DeleteByReport(ctx, id); err != nil {
+		return fmt.Errorf("delete report images: %w", err)
 	}
 
 	if err := s.visitReportRepo.Delete(ctx, id); err != nil {

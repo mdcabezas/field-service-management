@@ -3,6 +3,7 @@
 import { useRouter, useParams } from "next/navigation";
 import { useCustomer, useDeleteCustomer } from "@/hooks/use-customers";
 import { CustomerForm } from "@/components/forms/customer-form";
+import { CustomerAddressesTable } from "@/components/customer/customer-addresses-table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/stores/auth-store";
@@ -54,7 +55,6 @@ export default function CustomerDetailPage() {
         <TabsList>
           <TabsTrigger value="info">Información</TabsTrigger>
           <TabsTrigger value="addresses">Direcciones</TabsTrigger>
-          <TabsTrigger value="technicians">Técnicos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
@@ -62,15 +62,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="addresses">
-          <div className="p-4 border-2 border-black">
-            <p className="font-mono text-gray-500">Direcciones - Próximamente</p>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="technicians">
-          <div className="p-4 border-2 border-black">
-            <p className="font-mono text-gray-500">Técnicos - Próximamente</p>
-          </div>
+          <CustomerAddressesTable customerId={id} />
         </TabsContent>
       </Tabs>
     </div>

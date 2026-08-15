@@ -113,10 +113,10 @@ export interface SLA {
   partner_id: string;
   name: string;
   description?: string;
-  work_type: string;
-  response_hours: number;
-  resolution_hours: number;
-  compliance_target: number;
+  work_type?: string;
+  response_hours?: number;
+  resolution_hours?: number;
+  compliance_target?: number;
   active: boolean;
   valid_from?: string;
   valid_until?: string;
@@ -142,9 +142,15 @@ export interface CustomerAddress {
   customer_id: string;
   address_id: string;
   name?: string;
-  type?: string;
+  type?: CustomerAddressType;
   created_at: string;
 }
+
+export type CustomerAddressType = 
+  | "residential" 
+  | "commercial" 
+  | "industrial" 
+  | "institutional";
 
 export interface CustomerAddressPartner {
   id: string;
@@ -199,6 +205,21 @@ export interface GeocodedAddress {
   region: string;
   location_references?: string;
   postal_code?: string;
+  geom?: number[]; // [lng, lat]
+  created_at: string;
+}
+
+export interface Address {
+  id: string;
+  street: string;
+  number?: string;
+  apartment?: string;
+  neighborhood?: string;
+  city: string;
+  region?: string;
+  location_references?: string;
+  postal_code?: string;
+  geom?: number[]; // [lng, lat]
   created_at: string;
 }
 
@@ -350,6 +371,13 @@ export interface ChecklistTemplateEPP {
 // Operations
 // ============================================================================
 
+export interface VisitType {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
 export interface Visit {
   id: string;
   property_id?: string;
@@ -359,6 +387,7 @@ export interface Visit {
   route_id?: string;
   daily_plan_id?: string;
   type: string;
+  type_name?: string;
   status: string;
   priority: string;
   source?: string;
@@ -382,6 +411,8 @@ export interface VisitAssignment {
   visit_id: string;
   tech_id: string;
   role_id: string;
+  tech_name: string;
+  role_name: string;
   created_at: string;
 }
 
@@ -457,6 +488,8 @@ export interface VisitReport {
   source?: string;
   recorded_at?: string;
   created_at: string;
+  report_template_name?: string;
+  visit_label?: string;
 }
 
 export interface ReportEntry {
@@ -479,6 +512,9 @@ export interface VehicleAssignment {
   vehicle_id: string;
   daily_plan_id?: string;
   visit_id?: string;
+  vehicle_name?: string;
+  daily_plan_name?: string;
+  visit_label?: string;
   departure_time?: string;
   return_time?: string;
   departure_mileage?: number;
@@ -503,6 +539,8 @@ export interface VisitSLATracking {
   id: string;
   visit_id: string;
   sla_id: string;
+  visit_label?: string;
+  sla_name?: string;
   requested_at?: string;
   responded_at?: string;
   resolved_at?: string;

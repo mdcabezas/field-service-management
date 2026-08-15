@@ -29,12 +29,18 @@ import type {
 
 const assignmentColumns: ColumnDef<VisitAssignment, unknown>[] = [
   {
-    accessorKey: "tech_id",
+    accessorKey: "tech_name",
     header: "Técnico",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.tech_name || row.original.tech_id}</span>
+    ),
   },
   {
-    accessorKey: "role_id",
+    accessorKey: "role_name",
     header: "Rol",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.role_name || row.original.role_id}</span>
+    ),
   },
 ];
 

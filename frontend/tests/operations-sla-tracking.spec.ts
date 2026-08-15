@@ -9,7 +9,6 @@ import {
   expectRowCount,
   clickFirstRow,
   clickCreateButton,
-  fillInput,
   fillSelect,
   submitForm,
   confirmDialog,
@@ -33,8 +32,29 @@ test.describe('Operations/SLA Tracking Module', () => {
     await clickCreateButton(page, '+ Crear Seguimiento');
     await verifyPageTitle(page, 'Crear Seguimiento SLA');
 
-    await fillInput(page, 'visit_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'sla_id', '00000000-0000-0000-0000-000000000001');
+    // Wait for visits to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="visit_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'visit_id', 1);
+
+    // Wait for partners to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="partner_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'partner_id', 1);
+
+    // Wait for SLAs to load after partner selection
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="sla_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'sla_id', 1);
 
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/sla-trackings');
@@ -45,29 +65,51 @@ test.describe('Operations/SLA Tracking Module', () => {
   test('View SLA tracking detail page', async ({ page }) => {
     await gotoPage(page, MODULES.operationsSLATracking);
     await clickFirstRow(page);
-    await verifyPageTitle(page, 'Detalle de Seguimiento SLA');
+    await verifyPageTitle(page, 'Seguimiento SLA');
   });
 
-  test('Edit SLA tracking flow (update response time)', async ({ page }) => {
+  test('Detail page shows SLA tracking info', async ({ page }) => {
     await gotoPage(page, MODULES.operationsSLATracking);
     await clickFirstRow(page);
-
-    await fillInput(page, 'requested_at', new Date().toISOString());
-    await page.click('button[type="submit"]:has-text("Guardar")');
-    await waitForRedirect(page, '**/operations/sla-trackings');
-    await waitForToast(page, 'Seguimiento SLA actualizado');
+    await verifyPageTitle(page, 'Seguimiento SLA');
+    await expect(page.locator('text=Información del Seguimiento')).toBeVisible();
+    await expect(page.locator('button:has-text("Eliminar")')).toBeVisible();
   });
 
   test('Delete SLA tracking flow', async ({ page }) => {
     await gotoPage(page, MODULES.operationsSLATracking);
 
     await clickCreateButton(page, '+ Crear Seguimiento');
-    await fillInput(page, 'visit_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'sla_id', '00000000-0000-0000-0000-000000000001');
+
+    // Wait for visits to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="visit_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'visit_id', 1);
+
+    // Wait for partners to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="partner_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'partner_id', 1);
+
+    // Wait for SLAs to load
+    await page.waitForFunction(() => {
+      const select = document.querySelector('select[id="sla_id"]');
+      return select && select.options.length > 1;
+    });
+
+    await fillSelect(page, 'sla_id', 1);
+
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/sla-trackings');
 
     await clickFirstRow(page);
+    await confirmDialog(page);
     await page.click('button:has-text("Eliminar")');
     await waitForRedirect(page, '**/operations/sla-trackings');
     await waitForToast(page, 'Seguimiento SLA eliminado');

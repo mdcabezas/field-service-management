@@ -100,10 +100,13 @@ func TestVehicleAssignmentHandler_Update(t *testing.T) {
 }
 
 func TestVehicleAssignmentHandler_Delete(t *testing.T) {
-	vaRepo, _, svc := newVehicleAssignmentSvc(t)
+	vaRepo, vRepo, svc := newVehicleAssignmentSvc(t)
 	id := uuid.New()
-	vaRepo.EXPECT().GetByID(mockCtx(), id).Return(&operations.VehicleAssignment{ID: id}, nil)
+	vehicleID := uuid.New()
+	vaRepo.EXPECT().GetByID(mockCtx(), id).Return(&operations.VehicleAssignment{ID: id, VehicleID: vehicleID}, nil)
 	vaRepo.EXPECT().Delete(mockCtx(), id).Return(nil)
+	vRepo.EXPECT().GetByID(mockCtx(), vehicleID).Return(&inventorymodel.Vehicle{ID: vehicleID, Status: shared.VehicleStatusInUse}, nil)
+	vRepo.EXPECT().Update(mockCtx(), vehicleID, mock.Anything).Return(nil)
 
 	r := gin.New()
 	r.DELETE("/vehicle-assignments/:id", NewVehicleAssignmentHandler(svc).Delete)
@@ -301,7 +304,7 @@ func TestVisitHandler_Delete(t *testing.T) {
 	}
 }
 
-func newReportSvc(t *testing.T) (*mocks.VisitReportRepository, *mocks.ReportEntryRepository, *operationssvc.ReportService) {
+func newReportSvc(t *testing.T) (*mocks.VisitReportRepository, *mocks.ReportEntryRepository, *mocks.ReportImageRepository, *operationssvc.ReportService) {
 	t.Helper()
 	visitReportRepo := mocks.NewVisitReportRepository(t)
 	reportEntryRepo := mocks.NewReportEntryRepository(t)
@@ -312,12 +315,13 @@ func newReportSvc(t *testing.T) (*mocks.VisitReportRepository, *mocks.ReportEntr
 	auditRepo := mocks.NewCorePlanAuditLogRepository(t)
 	auditRepo.EXPECT().Create(mockCtx(), mock.AnythingOfType("*core.PlanAuditLog")).Return(nil).Maybe()
 	audit := coreservice.NewAuditService(auditRepo)
+
 	svc := operationssvc.NewReportService(visitReportRepo, reportEntryRepo, reportImageRepo, visitPhotoRepo, visitMeasureRepo, reportTmplRepo, audit)
-	return visitReportRepo, reportEntryRepo, svc
+	return visitReportRepo, reportEntryRepo, reportImageRepo, svc
 }
 
 func TestVisitReportHandler_GetByID(t *testing.T) {
-	reportRepo, _, svc := newReportSvc(t)
+	reportRepo, _, _, svc := newReportSvc(t)
 	id := uuid.New()
 	reportRepo.EXPECT().GetByID(mockCtx(), id).Return(&operations.VisitReport{ID: id}, nil)
 
@@ -332,7 +336,7 @@ func TestVisitReportHandler_GetByID(t *testing.T) {
 }
 
 func TestVisitReportHandler_List(t *testing.T) {
-	reportRepo, _, svc := newReportSvc(t)
+	reportRepo, _, _, svc := newReportSvc(t)
 	reportRepo.EXPECT().List(mockCtx(), 20, 0).Return(&repository.ListResult[operations.VisitReport]{Total: 0}, nil)
 
 	r := gin.New()
@@ -346,7 +350,7 @@ func TestVisitReportHandler_List(t *testing.T) {
 }
 
 func TestVisitReportHandler_ListByVisit(t *testing.T) {
-	reportRepo, _, svc := newReportSvc(t)
+	reportRepo, _, _, svc := newReportSvc(t)
 	vid := uuid.New()
 	reportRepo.EXPECT().ListByVisit(mockCtx(), vid).Return([]operations.VisitReport{}, nil)
 
@@ -361,7 +365,7 @@ func TestVisitReportHandler_ListByVisit(t *testing.T) {
 }
 
 func TestVisitReportHandler_Create(t *testing.T) {
-	reportRepo, entryRepo, svc := newReportSvc(t)
+	reportRepo, entryRepo, _, svc := newReportSvc(t)
 	vid := uuid.New()
 	tid := uuid.New()
 	reportRepo.EXPECT().Create(mockCtx(), mock.AnythingOfType("*operations.VisitReport")).Return(nil)
@@ -380,7 +384,7 @@ func TestVisitReportHandler_Create(t *testing.T) {
 }
 
 func TestVisitReportHandler_Create_MissingTemplate(t *testing.T) {
-	_, _, svc := newReportSvc(t)
+	_, _, _, svc := newReportSvc(t)
 	vid := uuid.New()
 	body := `{"visit_id":"` + vid.String() + `"}`
 	r := gin.New()
@@ -394,10 +398,33 @@ func TestVisitReportHandler_Create_MissingTemplate(t *testing.T) {
 	}
 }
 
+func TestVisitReportHandler_Create_WithSourceAndRecordedAt(t *testing.T) {
+	reportRepo, entryRepo, _, svc := newReportSvc(t)
+	vid := uuid.New()
+	tid := uuid.New()
+	reportRepo.EXPECT().Create(mockCtx(), mock.MatchedBy(func(r *operations.VisitReport) bool {
+		return r.Source == shared.ReportSourcePaper && r.RecordedAt.Year() == 2026
+	})).Return(nil)
+	entryRepo.EXPECT().Create(mockCtx(), mock.AnythingOfType("*operations.ReportEntry")).Return(nil)
+
+	body := `{"visit_id":"` + vid.String() + `","report_template_id":"` + tid.String() + `","source":"paper","recorded_at":"2026-01-15T10:30:00Z"}`
+	r := gin.New()
+	r.POST("/visit-reports", NewVisitReportHandler(svc).Create)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/visit-reports", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestVisitReportHandler_Delete(t *testing.T) {
-	reportRepo, _, svc := newReportSvc(t)
+	reportRepo, entryRepo, imageRepo, svc := newReportSvc(t)
 	id := uuid.New()
 	reportRepo.EXPECT().GetByID(mockCtx(), id).Return(&operations.VisitReport{ID: id}, nil)
+	entryRepo.EXPECT().DeleteByReport(mockCtx(), id).Return(nil)
+	imageRepo.EXPECT().DeleteByReport(mockCtx(), id).Return(nil)
 	reportRepo.EXPECT().Delete(mockCtx(), id).Return(nil)
 
 	r := gin.New()

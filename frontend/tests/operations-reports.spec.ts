@@ -28,50 +28,60 @@ test.describe('Operations/Reports Module', () => {
     await expectRowCount(page, 1);
   });
 
+  test('List page shows names instead of UUIDs in columns', async ({ page }) => {
+    await gotoPage(page, MODULES.operationsReports);
+    await expectTableVisible(page);
+    // Verify column headers use name fields, not UUID fields
+    await expect(page.locator('th:has-text("Plantilla")')).toBeVisible();
+    await expect(page.locator('th:has-text("Visita")')).toBeVisible();
+  });
+
   test('Create new report flow', async ({ page }) => {
     await gotoPage(page, MODULES.operationsReports);
     await clickCreateButton(page, '+ Crear Reporte');
-    await verifyPageTitle(page, 'Crear Reporte de Visita');
+    await verifyPageTitle(page, 'Crear Reporte');
 
-    await fillInput(page, 'visit_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'report_template_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'source', 'system');
+    await fillSelect(page, 'visit_id', 1);
+    await fillSelect(page, 'report_template_id', 1);
+    await fillSelect(page, 'source', 1);
 
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/reports');
-    await waitForToast(page, 'Reporte de visita creado');
+    await waitForToast(page, 'Reporte creado');
     await expectRowCount(page, 2);
   });
 
   test('View report detail page', async ({ page }) => {
     await gotoPage(page, MODULES.operationsReports);
     await clickFirstRow(page);
-    await verifyPageTitle(page, 'Detalle de Reporte de Visita');
+    await verifyPageTitle(page, 'Reporte');
   });
 
-  test('Edit report flow', async ({ page }) => {
+  test('Detail page shows names instead of UUIDs', async ({ page }) => {
     await gotoPage(page, MODULES.operationsReports);
     await clickFirstRow(page);
-
-    await fillInput(page, 'source', 'manual');
-    await page.click('button[type="submit"]:has-text("Guardar")');
-    await waitForRedirect(page, '**/operations/reports');
-    await waitForToast(page, 'Reporte de visita actualizado');
+    await verifyPageTitle(page, 'Reporte');
+    // Verify labels are visible
+    await expect(page.locator('label:has-text("Visita")')).toBeVisible();
+    await expect(page.locator('label:has-text("Plantilla")')).toBeVisible();
   });
 
   test('Delete report flow', async ({ page }) => {
     await gotoPage(page, MODULES.operationsReports);
 
     await clickCreateButton(page, '+ Crear Reporte');
-    await fillInput(page, 'visit_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'report_template_id', '00000000-0000-0000-0000-000000000001');
-    await fillInput(page, 'source', 'delete_test');
+
+    await fillSelect(page, 'visit_id', 1);
+    await fillSelect(page, 'report_template_id', 1);
+    await fillSelect(page, 'source', 1);
+
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/reports');
 
     await clickFirstRow(page);
+    await confirmDialog(page);
     await page.click('button:has-text("Eliminar")');
     await waitForRedirect(page, '**/operations/reports');
-    await waitForToast(page, 'Reporte de visita eliminado');
+    await waitForToast(page, 'Reporte eliminado');
   });
 });

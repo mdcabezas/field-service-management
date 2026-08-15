@@ -44,7 +44,7 @@ func (h *SLAHandler) ListByPartner(c *gin.Context) {
 		handler.HandleServiceError(c, err)
 		return
 	}
-	handler.RespondJSON(c, http.StatusOK, items)
+	handler.RespondJSON(c, http.StatusOK, gin.H{"items": items, "total": len(items)})
 }
 
 func (h *SLAHandler) Create(c *gin.Context) {

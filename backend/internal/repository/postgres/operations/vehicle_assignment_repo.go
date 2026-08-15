@@ -28,10 +28,19 @@ func (r *VehicleAssignmentRepo) Pool() *pgxpool.Pool {
 func (r *VehicleAssignmentRepo) GetByID(ctx context.Context, id uuid.UUID) (*operations.VehicleAssignment, error) {
 	var va operations.VehicleAssignment
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, vehicle_id, daily_plan_id, visit_id, departure_time, return_time, departure_mileage, return_mileage, notes, created_at
-		 FROM operations.vehicle_assignments
-		 WHERE id = $1`, id,
-	).Scan(&va.ID, &va.VehicleID, &va.DailyPlanID, &va.VisitID, &va.DepartureTime, &va.ReturnTime, &va.DepartureMileage, &va.ReturnMileage, &va.Notes, &va.CreatedAt)
+		`SELECT va.id, va.vehicle_id, va.daily_plan_id, va.visit_id,
+		        v.name AS vehicle_name,
+		        COALESCE(dp.name || ' - ' || TO_CHAR(dp.date, 'DD/MM/YYYY'), '') AS daily_plan_name,
+		        CONCAT(COALESCE(vt.name, 'Visita'), ' - ', TO_CHAR(vis.scheduled_at, 'DD/MM/YYYY')) AS visit_label,
+		        va.departure_time, va.return_time, va.departure_mileage, va.return_mileage, va.notes, va.created_at
+		 FROM operations.vehicle_assignments va
+		 LEFT JOIN inventory.vehicles v ON v.id = va.vehicle_id
+		 LEFT JOIN planning.daily_plans dp ON dp.id = va.daily_plan_id
+		 LEFT JOIN operations.visits vis ON vis.id = va.visit_id
+		 LEFT JOIN operations.visit_types vt ON vt.id = vis.type
+		 WHERE va.id = $1`, id,
+	).Scan(&va.ID, &va.VehicleID, &va.DailyPlanID, &va.VisitID, &va.VehicleName, &va.DailyPlanName, &va.VisitLabel,
+		&va.DepartureTime, &va.ReturnTime, &va.DepartureMileage, &va.ReturnMileage, &va.Notes, &va.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "vehicle_assignment", ID: id.String()}
 	}
@@ -49,9 +58,17 @@ func (r *VehicleAssignmentRepo) List(ctx context.Context, limit, offset int) (*r
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, vehicle_id, daily_plan_id, visit_id, departure_time, return_time, departure_mileage, return_mileage, notes, created_at
-		 FROM operations.vehicle_assignments
-		 ORDER BY created_at DESC
+		`SELECT va.id, va.vehicle_id, va.daily_plan_id, va.visit_id,
+		        v.name AS vehicle_name,
+		        COALESCE(dp.name || ' - ' || TO_CHAR(dp.date, 'DD/MM/YYYY'), '') AS daily_plan_name,
+		        CONCAT(COALESCE(vt.name, 'Visita'), ' - ', TO_CHAR(vis.scheduled_at, 'DD/MM/YYYY')) AS visit_label,
+		        va.departure_time, va.return_time, va.departure_mileage, va.return_mileage, va.notes, va.created_at
+		 FROM operations.vehicle_assignments va
+		 LEFT JOIN inventory.vehicles v ON v.id = va.vehicle_id
+		 LEFT JOIN planning.daily_plans dp ON dp.id = va.daily_plan_id
+		 LEFT JOIN operations.visits vis ON vis.id = va.visit_id
+		 LEFT JOIN operations.visit_types vt ON vt.id = vis.type
+		 ORDER BY va.created_at DESC
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -62,7 +79,8 @@ func (r *VehicleAssignmentRepo) List(ctx context.Context, limit, offset int) (*r
 	items := make([]operations.VehicleAssignment, 0)
 	for rows.Next() {
 		var va operations.VehicleAssignment
-		if err := rows.Scan(&va.ID, &va.VehicleID, &va.DailyPlanID, &va.VisitID, &va.DepartureTime, &va.ReturnTime, &va.DepartureMileage, &va.ReturnMileage, &va.Notes, &va.CreatedAt); err != nil {
+		if err := rows.Scan(&va.ID, &va.VehicleID, &va.DailyPlanID, &va.VisitID, &va.VehicleName, &va.DailyPlanName, &va.VisitLabel,
+			&va.DepartureTime, &va.ReturnTime, &va.DepartureMileage, &va.ReturnMileage, &va.Notes, &va.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan vehicle assignment: %w", err)
 		}
 		items = append(items, va)

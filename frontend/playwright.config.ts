@@ -17,6 +17,14 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'api',
+      testDir: './tests/api',
+      use: {
+        baseURL: 'http://localhost:8088',
+        headless: true,
+      },
+    },
   ],
   webServer: {
     command: 'npm run dev',

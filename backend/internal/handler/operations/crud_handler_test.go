@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"localis-backend/internal/model/operations"
 	"localis-backend/internal/model/shared"
+	"localis-backend/internal/repository"
 	"localis-backend/internal/testutil/mocks"
 )
 
@@ -598,6 +599,42 @@ func reqJSON(method, path, body string) *http.Request {
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	return req
+}
+
+func TestVisitTypeHandler(t *testing.T) {
+	repo := mocks.NewVisitTypeRepository(t)
+	id := uuid.New()
+	repo.EXPECT().GetByID(mockCtx(), id).Return(&operations.VisitType{ID: id}, nil)
+	repo.EXPECT().List(mockCtx(), 20, 0).Return(&repository.ListResult[operations.VisitType]{Total: 0}, nil)
+	repo.EXPECT().Create(mockCtx(), mock.AnythingOfType("*operations.VisitType")).Return(nil)
+	repo.EXPECT().Delete(mockCtx(), id).Return(nil)
+
+	h := NewVisitTypeHandler(repo)
+	r := gin.New()
+	r.GET("/visit-types/:id", h.GetByID)
+	r.GET("/visit-types", h.List)
+	r.POST("/visit-types", h.Create)
+	r.DELETE("/visit-types/:id", h.Delete)
+
+	cases := []struct {
+		name string
+		req  *http.Request
+		code int
+	}{
+		{"GetByID", httptest.NewRequest(http.MethodGet, "/visit-types/"+id.String(), nil), http.StatusOK},
+		{"List", httptest.NewRequest(http.MethodGet, "/visit-types", nil), http.StatusOK},
+		{"Create", reqJSON(http.MethodPost, "/visit-types", `{"code":"INSTALL","name":"Installation","active":true}`), http.StatusCreated},
+		{"Delete", httptest.NewRequest(http.MethodDelete, "/visit-types/"+id.String(), nil), http.StatusNoContent},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, tc.req)
+			if w.Code != tc.code {
+				t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+			}
+		})
+	}
 }
 
 var _ = shared.CheckpointType("arrival")

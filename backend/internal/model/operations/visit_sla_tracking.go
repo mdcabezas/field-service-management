@@ -10,6 +10,8 @@ type VisitSLATracking struct {
 	ID                  uuid.UUID  `json:"id" db:"id" `
 	VisitID             uuid.UUID  `json:"visit_id" db:"visit_id"`
 	SLAID               uuid.UUID  `json:"sla_id" db:"sla_id"`
+	VisitLabel          string     `json:"visit_label" db:"visit_label"`
+	SLAName             string     `json:"sla_name" db:"sla_name"`
 	RequestedAt         *time.Time `json:"requested_at,omitempty" db:"requested_at"`
 	RespondedAt         *time.Time `json:"responded_at,omitempty" db:"responded_at"`
 	ResolvedAt          *time.Time `json:"resolved_at,omitempty" db:"resolved_at"`

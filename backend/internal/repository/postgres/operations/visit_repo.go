@@ -28,15 +28,16 @@ func (r *VisitRepo) Pool() *pgxpool.Pool {
 func (r *VisitRepo) GetByID(ctx context.Context, id uuid.UUID) (*operations.Visit, error) {
 	var v operations.Visit
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, property_id, partner_id, partner_order_id, parent_visit_id, route_id, daily_plan_id,
-		        type, status, priority, source, source_reference, billing_to, partner_supervisor,
-		        result, rejection_reason_id, rejection_reason_detail,
-		        scheduled_at, started_at, completed_at, alternative_location, notes,
-		        created_at, updated_at
-		 FROM operations.visits
-		 WHERE id = $1`, id,
+		`SELECT v.id, v.property_id, v.partner_id, v.partner_order_id, v.parent_visit_id, v.route_id, v.daily_plan_id,
+		        v.type, vt.name as type_name, v.status, v.priority, v.source, v.source_reference, v.billing_to, v.partner_supervisor,
+		        v.result, v.rejection_reason_id, v.rejection_reason_detail,
+		        v.scheduled_at, v.started_at, v.completed_at, v.alternative_location, v.notes,
+		        v.created_at, v.updated_at
+		 FROM operations.visits v
+		 LEFT JOIN operations.visit_types vt ON vt.id = v.type
+		 WHERE v.id = $1`, id,
 	).Scan(&v.ID, &v.PropertyID, &v.PartnerID, &v.PartnerOrderID, &v.ParentVisitID, &v.RouteID, &v.DailyPlanID,
-		&v.Type, &v.Status, &v.Priority, &v.Source, &v.SourceReference, &v.BillingTo, &v.PartnerSupervisor,
+		&v.Type, &v.TypeName, &v.Status, &v.Priority, &v.Source, &v.SourceReference, &v.BillingTo, &v.PartnerSupervisor,
 		&v.Result, &v.RejectionReasonID, &v.RejectionReasonDetail,
 		&v.ScheduledAt, &v.StartedAt, &v.CompletedAt, &v.AlternativeLocation, &v.Notes,
 		&v.CreatedAt, &v.UpdatedAt)
@@ -57,13 +58,14 @@ func (r *VisitRepo) List(ctx context.Context, limit, offset int) (*repository.Li
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, property_id, partner_id, partner_order_id, parent_visit_id, route_id, daily_plan_id,
-		        type, status, priority, source, source_reference, billing_to, partner_supervisor,
-		        result, rejection_reason_id, rejection_reason_detail,
-		        scheduled_at, started_at, completed_at, alternative_location, notes,
-		        created_at, updated_at
-		 FROM operations.visits
-		 ORDER BY scheduled_at DESC
+		`SELECT v.id, v.property_id, v.partner_id, v.partner_order_id, v.parent_visit_id, v.route_id, v.daily_plan_id,
+		        v.type, vt.name as type_name, v.status, v.priority, v.source, v.source_reference, v.billing_to, v.partner_supervisor,
+		        v.result, v.rejection_reason_id, v.rejection_reason_detail,
+		        v.scheduled_at, v.started_at, v.completed_at, v.alternative_location, v.notes,
+		        v.created_at, v.updated_at
+		 FROM operations.visits v
+		 LEFT JOIN operations.visit_types vt ON vt.id = v.type
+		 ORDER BY v.scheduled_at DESC
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -75,7 +77,7 @@ func (r *VisitRepo) List(ctx context.Context, limit, offset int) (*repository.Li
 	for rows.Next() {
 		var v operations.Visit
 		if err := rows.Scan(&v.ID, &v.PropertyID, &v.PartnerID, &v.PartnerOrderID, &v.ParentVisitID, &v.RouteID, &v.DailyPlanID,
-			&v.Type, &v.Status, &v.Priority, &v.Source, &v.SourceReference, &v.BillingTo, &v.PartnerSupervisor,
+			&v.Type, &v.TypeName, &v.Status, &v.Priority, &v.Source, &v.SourceReference, &v.BillingTo, &v.PartnerSupervisor,
 			&v.Result, &v.RejectionReasonID, &v.RejectionReasonDetail,
 			&v.ScheduledAt, &v.StartedAt, &v.CompletedAt, &v.AlternativeLocation, &v.Notes,
 			&v.CreatedAt, &v.UpdatedAt); err != nil {

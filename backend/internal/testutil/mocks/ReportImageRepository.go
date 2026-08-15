@@ -249,3 +249,50 @@ func NewReportImageRepository(t interface {
 
 	return mock
 }
+
+// DeleteByReport provides a mock function with given fields: ctx, reportID
+func (_m *ReportImageRepository) DeleteByReport(ctx context.Context, reportID uuid.UUID) error {
+	ret := _m.Called(ctx, reportID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteByReport")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, reportID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// ReportImageRepository_DeleteByReport_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteByReport'
+type ReportImageRepository_DeleteByReport_Call struct {
+	*mock.Call
+}
+
+// DeleteByReport is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reportID uuid.UUID
+func (_e *ReportImageRepository_Expecter) DeleteByReport(ctx interface{}, reportID interface{}) *ReportImageRepository_DeleteByReport_Call {
+	return &ReportImageRepository_DeleteByReport_Call{Call: _e.mock.On("DeleteByReport", ctx, reportID)}
+}
+
+func (_c *ReportImageRepository_DeleteByReport_Call) Run(run func(ctx context.Context, reportID uuid.UUID)) *ReportImageRepository_DeleteByReport_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *ReportImageRepository_DeleteByReport_Call) Return(_a0 error) *ReportImageRepository_DeleteByReport_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *ReportImageRepository_DeleteByReport_Call) RunAndReturn(run func(context.Context, uuid.UUID) error) *ReportImageRepository_DeleteByReport_Call {
+	_c.Call.Return(run)
+	return _c
+}
