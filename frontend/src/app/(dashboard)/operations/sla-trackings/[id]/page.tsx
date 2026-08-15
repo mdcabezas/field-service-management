@@ -64,13 +64,13 @@ export default function SLATrackingDetailPage() {
               <label className="font-mono text-sm font-medium text-gray-500">
                 Visita
               </label>
-              <p className="font-mono">{slaTracking.visit_id}</p>
+              <p className="font-mono">{slaTracking.visit_label || slaTracking.visit_id}</p>
             </div>
             <div>
               <label className="font-mono text-sm font-medium text-gray-500">
                 SLA
               </label>
-              <p className="font-mono">{slaTracking.sla_id}</p>
+              <p className="font-mono">{slaTracking.sla_name || slaTracking.sla_id}</p>
             </div>
             <div>
               <label className="font-mono text-sm font-medium text-gray-500">

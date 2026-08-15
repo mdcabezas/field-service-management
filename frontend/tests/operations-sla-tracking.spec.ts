@@ -46,7 +46,8 @@ test.describe('Operations/SLA Tracking Module', () => {
       return select && select.options.length > 1;
     });
 
-    await fillSelect(page, 'partner_id', 1);
+    // Select a partner that has SLAs by value (robust to accumulated test data)
+    await page.selectOption('select[id="partner_id"]', { value: '30000000-0000-0000-0000-000000000001' });
 
     // Wait for SLAs to load after partner selection
     await page.waitForFunction(() => {
@@ -54,7 +55,7 @@ test.describe('Operations/SLA Tracking Module', () => {
       return select && select.options.length > 1;
     });
 
-    await fillSelect(page, 'sla_id', 1);
+    await page.selectOption('select[id="sla_id"]', { value: '35000000-0000-0000-0000-000000000001' });
 
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/sla-trackings');
@@ -95,7 +96,7 @@ test.describe('Operations/SLA Tracking Module', () => {
       return select && select.options.length > 1;
     });
 
-    await fillSelect(page, 'partner_id', 1);
+    await page.selectOption('select[id="partner_id"]', { value: '30000000-0000-0000-0000-000000000001' });
 
     // Wait for SLAs to load
     await page.waitForFunction(() => {
@@ -103,7 +104,7 @@ test.describe('Operations/SLA Tracking Module', () => {
       return select && select.options.length > 1;
     });
 
-    await fillSelect(page, 'sla_id', 1);
+    await page.selectOption('select[id="sla_id"]', { value: '35000000-0000-0000-0000-000000000001' });
 
     await submitForm(page, 'Crear');
     await waitForRedirect(page, '**/operations/sla-trackings');
