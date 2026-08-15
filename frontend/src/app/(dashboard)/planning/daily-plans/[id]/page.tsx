@@ -64,11 +64,15 @@ export default function DailyPlanDetailPage() {
 
   const onSubmit = async (data: DailyPlanFormData) => {
     try {
+      const payload = {
+        ...data,
+        date: data.date ? `${data.date}T00:00:00Z` : data.date,
+      };
       if (isNew) {
-        await createDailyPlan.mutateAsync(data);
+        await createDailyPlan.mutateAsync(payload);
         toast.success("Plan diario creado");
       } else {
-        await updateDailyPlan.mutateAsync({ id, data });
+        await updateDailyPlan.mutateAsync({ id, data: payload });
         toast.success("Plan diario actualizado");
       }
       router.push("/planning/daily-plans");
