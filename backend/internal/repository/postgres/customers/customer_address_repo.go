@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"localis-backend/internal/model/customers"
 	"localis-backend/internal/service"
@@ -70,6 +71,10 @@ func (r *CustomerAddressRepo) Create(ctx context.Context, addr *customers.Custom
 		addr.ID, addr.CustomerID, addr.AddressID, addr.Name, addr.Type, addr.CreatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return &service.ConflictError{Message: "address already linked to this customer"}
+		}
 		return fmt.Errorf("create customer address: %w", err)
 	}
 	return nil

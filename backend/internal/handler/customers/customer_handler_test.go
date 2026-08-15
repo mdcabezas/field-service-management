@@ -14,6 +14,7 @@ import (
 	"localis-backend/internal/model/customers"
 	"localis-backend/internal/model/shared"
 	"localis-backend/internal/repository"
+	"localis-backend/internal/service"
 	"localis-backend/internal/testutil/mocks"
 )
 
@@ -405,6 +406,23 @@ func TestCustomerAddressHandler_Create(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestCustomerAddressHandler_Create_Duplicate(t *testing.T) {
+	repo := mocks.NewCustomerAddressRepository(t)
+	repo.EXPECT().Create(mockCtx(), mock.AnythingOfType("*customers.CustomerAddress")).Return(&service.ConflictError{Message: "address already linked to this customer"})
+
+	cid := uuid.New()
+	aid := uuid.New()
+	body := `{"customer_id":"` + cid.String() + `","address_id":"` + aid.String() + `","type":"residential"}`
+	r := newAddressRouter(t, NewCustomerAddressHandler(repo))
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/customer-addresses", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
 	}
 }

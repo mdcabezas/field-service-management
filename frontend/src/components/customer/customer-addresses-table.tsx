@@ -44,16 +44,26 @@ export function CustomerAddressesTable({ customerId }: CustomerAddressesTablePro
     return map;
   }, [geocodingAddresses]);
 
+  const linkedAddressIds = useMemo(
+    () => new Set(customerAddresses.map((ca) => ca.address_id)),
+    [customerAddresses]
+  );
+
+  const availableAddresses = useMemo(
+    () => geocodingAddresses.filter((a) => !linkedAddressIds.has(a.id)),
+    [geocodingAddresses, linkedAddressIds]
+  );
+
   const filteredAddresses = useMemo(() => {
-    if (!searchQuery) return geocodingAddresses;
+    if (!searchQuery) return availableAddresses;
     const q = searchQuery.toLowerCase();
-    return geocodingAddresses.filter(
+    return availableAddresses.filter(
       (a) =>
         a.street.toLowerCase().includes(q) ||
         a.city.toLowerCase().includes(q) ||
         (a.number && a.number.toLowerCase().includes(q))
     );
-  }, [geocodingAddresses, searchQuery]);
+  }, [availableAddresses, searchQuery]);
 
   const handleOpenDialog = () => {
     setSelectedAddressId("");
@@ -90,7 +100,12 @@ export function CustomerAddressesTable({ customerId }: CustomerAddressesTablePro
       setShowDialog(false);
       refetch();
     } catch (err) {
-      setError("Error al vincular la dirección al cliente");
+      const conflict = (err as { statusCode?: number })?.statusCode === 409;
+      setError(
+        conflict
+          ? "Esta dirección ya está vinculada al cliente"
+          : "Error al vincular la dirección al cliente"
+      );
       console.error(err);
     } finally {
       setIsSubmitting(false);

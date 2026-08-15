@@ -47,7 +47,8 @@ test.describe('Customers Module', () => {
   test('View customer detail page', async ({ page }) => {
     await gotoPage(page, MODULES.customers);
     await clickFirstRow(page);
-    await verifyPageTitle(page, 'Detalle de Cliente');
+    await expect(page.locator('button[role="tab"]:has-text("Direcciones")')).toBeVisible();
+    await expect(page.locator('button:has-text("Eliminar")')).toBeVisible();
   });
 
   test('Edit customer flow', async ({ page }) => {
@@ -55,7 +56,7 @@ test.describe('Customers Module', () => {
     await clickFirstRow(page);
 
     await fillInput(page, 'name', 'Updated Customer Name');
-    await page.click('button[type="submit"]:has-text("Guardar")');
+    await page.click('button[type="submit"]:has-text("Actualizar")');
     await waitForRedirect(page, '**/customers');
     await waitForToast(page, 'Cliente actualizado');
   });
@@ -68,10 +69,25 @@ test.describe('Customers Module', () => {
     await fillInput(page, 'tax_id', '99999999-9');
     await fillInput(page, 'email', 'delete@test.com');
     await fillInput(page, 'phone', '+56911111111');
-    await submitForm(page, 'Crear');
-    await waitForRedirect(page, '**/customers');
 
-    await clickFirstRow(page);
+    // Capture the customer ID from the creation response
+    let customerId: string;
+    const responsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/customers') && resp.request().method() === 'POST'
+    );
+    await submitForm(page, 'Crear');
+    const response = await responsePromise;
+    const responseBody = await response.json();
+    customerId = responseBody.id;
+
+    await waitForRedirect(page, '**/customers');
+    await waitForToast(page, 'Cliente creado');
+
+    // Navigate directly to the created customer's detail page
+    await page.goto(`http://localhost:3000/customers/${customerId}`);
+    await expect(page.locator('button:has-text("Eliminar")')).toBeVisible();
+
+    await confirmDialog(page);
     await page.click('button:has-text("Eliminar")');
     await waitForRedirect(page, '**/customers');
     await waitForToast(page, 'Cliente eliminado');
