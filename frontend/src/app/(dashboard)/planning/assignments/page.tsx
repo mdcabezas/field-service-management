@@ -8,17 +8,24 @@ import { useAllTechnicians } from "@/hooks/use-technicians";
 import { useTechRoles } from "@/hooks/use-tech-roles";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { DailyPlanAssignment } from "@/types/api";
 
 export default function AssignmentsPage() {
   const router = useRouter();
-  const { data: assignments, isLoading } = useAllDailyPlanAssignments();
+  const { data: assignments, isLoading, error } = useAllDailyPlanAssignments();
   const { data: dailyPlans } = useDailyPlans();
   const { data: technicians } = useAllTechnicians();
   const { data: techRoles } = useTechRoles();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (error) toast.error("Error al cargar asignaciones");
+  }, [error]);
 
   const columns: ColumnDef<DailyPlanAssignment, unknown>[] = [
     {
@@ -44,15 +51,15 @@ export default function AssignmentsPage() {
         const role = techRoles?.find((r) => r.id === row.original.role_id);
         return role ? role.name : row.original.role_id;
       },
-    },];
+    },
+  ];
 
   const handleRowClick = (row: DailyPlanAssignment) => {
     router.push(`/planning/assignments/${row.id}`);
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -70,8 +77,8 @@ export default function AssignmentsPage() {
       <DataTable
         columns={columns}
         data={assignments || []}
-        searchPlaceholder="Buscar por plan o visita..."
-        searchColumn="daily_plan_id"
+        searchPlaceholder="Buscar por plan o técnico..."
+        searchColumn={["daily_plan_id", "tech_id"]}
         onRowClick={handleRowClick}
       />
     </div>

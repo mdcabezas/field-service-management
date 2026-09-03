@@ -5,21 +5,31 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useChecklistTemplates } from "@/hooks/use-checklist-templates";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { ChecklistTemplate } from "@/types/api";
 
 const columns: ColumnDef<ChecklistTemplate, unknown>[] = [
   { accessorKey: "name", header: "Nombre" },
   { accessorKey: "description", header: "Descripción" },
-  { accessorKey: "visit_type", header: "Tipo de Visita" },];
+  { accessorKey: "visit_type_display", header: "Tipo de Visita" },
+  { accessorKey: "work_type_display", header: "Tipo de Trabajo" },
+];
 
 export default function ChecklistTemplatesPage() {
   const router = useRouter();
-  const { data, isLoading } = useChecklistTemplates();
+  const { data, isLoading, error } = useChecklistTemplates();
   const { user } = useAuthStore();
 
-  if (isLoading) return <div className="font-mono">Cargando...</div>;
+  useEffect(() => {
+    if (error) toast.error("Error al cargar plantillas de checklist");
+  }, [error]);
+
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -36,8 +46,8 @@ export default function ChecklistTemplatesPage() {
       <DataTable
         columns={columns}
         data={data || []}
-        searchPlaceholder="Buscar plantilla..."
-        searchColumn="name"
+        searchPlaceholder="Buscar por nombre o tipo..."
+        searchColumn={["name", "visit_type", "work_type"]}
         onRowClick={(row) => router.push(`/inventory/checklist-templates/${row.id}`)}
       />
     </div>

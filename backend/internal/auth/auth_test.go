@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,9 +11,40 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"localis-backend/internal/model/core"
+	"localis-backend/internal/repository"
 )
 
 const testSecret = "this-is-a-test-secret-that-is-long-enough-32-bytes"
+
+type mockUserRepo struct {
+	user *core.UserWithPassword
+	err  error
+}
+
+func (m *mockUserRepo) GetByID(_ context.Context, _ string) (*core.User, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.user == nil {
+		return nil, errors.New("not found")
+	}
+	return &m.user.User, nil
+}
+func (m *mockUserRepo) GetByEmail(_ context.Context, _ string) (*core.UserWithPassword, error) {
+	return m.user, m.err
+}
+func (m *mockUserRepo) List(_ context.Context, _ int, _ int) (*repository.ListResult[core.User], error) {
+	return nil, nil
+}
+func (m *mockUserRepo) Create(_ context.Context, _ *core.User) error { return nil }
+func (m *mockUserRepo) Update(_ context.Context, _ string, _ *core.User) error {
+	return nil
+}
+func (m *mockUserRepo) Delete(_ context.Context, _ string) error { return nil }
+
+var _ repository.CoreUserRepository = (*mockUserRepo)(nil)
 
 func mustJWT(t *testing.T, secret string) *JWTAuth {
 	t.Helper()
@@ -45,7 +78,7 @@ func TestJWTAuth_GenerateAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateToken: %v", err)
 	}
-	if claims.EmployeeNumber != "1001" || claims.Role != "admin" {
+	if claims.UserID != "1001" || claims.Role != "admin" {
 		t.Fatalf("claims = %+v", claims)
 	}
 }
@@ -151,8 +184,8 @@ func TestMiddleware_Validate_ValidToken(t *testing.T) {
 			return
 		}
 		cl := claims.(*Claims)
-		if cl.EmployeeNumber != "1001" {
-			t.Errorf("employee = %q", cl.EmployeeNumber)
+		if cl.UserID != "1001" {
+			t.Errorf("employee = %q", cl.UserID)
 		}
 		c.Status(http.StatusOK)
 	})
@@ -241,26 +274,6 @@ func TestHandler_Login_InvalidBody(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d", w.Code)
-	}
-}
-
-func TestHandler_Login_LDAPUnreachable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	a := mustJWT(t, testSecret)
-	// ldaps:// to a closed port: Bind dial fails -> 401 invalid credentials
-	bad, err := NewLDAPAuth("ldaps://127.0.0.1:1", "dc=workflows,dc=cl", "pw")
-	if err != nil {
-		t.Fatalf("NewLDAPAuth: %v", err)
-	}
-	h := NewHandler(bad, a, nil)
-	r := gin.New()
-	r.POST("/login", h.Login)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"employee_number":"1001","password":"x"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", w.Code)
 	}
 }
@@ -373,10 +386,20 @@ func TestHandler_Me_Unauthorized(t *testing.T) {
 func TestHandler_Me_Authorized(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	a := mustJWT(t, testSecret)
-	h := NewHandler(nil, a, nil)
+	mockRepo := &mockUserRepo{
+		user: &core.UserWithPassword{
+			User: core.User{
+				ID:    uuid.MustParse("10000000-0000-0000-0000-000000000001"),
+				Email: "admin@localis.cl",
+				Role:  "admin",
+				Name:  "Admin User",
+			},
+		},
+	}
+	h := NewHandler(mockRepo, a, nil)
 	r := gin.New()
 	r.GET("/me", func(c *gin.Context) {
-		c.Set(ClaimsKey, &Claims{EmployeeNumber: "1001", Role: "admin"})
+		c.Set(ClaimsKey, &Claims{UserID: "10000000-0000-0000-0000-000000000001", Role: "admin"})
 		h.Me(c)
 	})
 	w := httptest.NewRecorder()
@@ -385,60 +408,7 @@ func TestHandler_Me_Authorized(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), `"employee_number":"1001"`) {
+	if !strings.Contains(w.Body.String(), `"email":"admin@localis.cl"`) {
 		t.Fatalf("body = %s", w.Body.String())
-	}
-}
-
-func TestLDAPAuth_ResolveRole(t *testing.T) {
-	cases := []struct {
-		groups []string
-		role   string
-	}{
-		{groups: []string{"Admins"}, role: "admin"},
-		{groups: []string{"managers"}, role: "manager"},
-		{groups: []string{"supervisor"}, role: "supervisor"},
-		{groups: []string{"ops"}, role: "technician"},
-		{groups: nil, role: "technician"},
-	}
-	for _, tc := range cases {
-		got := (&LDAPAuth{}).ResolveRole(&LDAPUser{Groups: tc.groups})
-		if got != tc.role {
-			t.Errorf("ResolveRole(%v) = %q, want %q", tc.groups, got, tc.role)
-		}
-	}
-}
-
-func TestEscapeDN(t *testing.T) {
-	if got := escapeDN("a,b=c\\d"); got != `a\,b\=c\\d` {
-		t.Fatalf("escapeDN = %q", got)
-	}
-	if got := escapeDN(" plain"); got != `\20plain` {
-		t.Fatalf("escapeDN leading space = %q", got)
-	}
-}
-
-func TestNewLDAPAuth_LDAPSNoDial(t *testing.T) {
-	a, err := NewLDAPAuth("ldaps://ldap.example:636", "dc=workflows,dc=cl", "pw")
-	if err != nil {
-		t.Fatalf("NewLDAPAuth: %v", err)
-	}
-	if a == nil || a.useStartTLS {
-		t.Fatal("ldaps should not use StartTLS")
-	}
-}
-
-func TestLDAPAuth_Bind_DialFail(t *testing.T) {
-	a := &LDAPAuth{url: "ldap://127.0.0.1:1", baseDN: "dc=workflows,dc=cl"}
-	if _, err := a.Bind("1001", "pw"); err == nil {
-		t.Fatal("expected dial error")
-	}
-}
-
-func TestLDAPAuth_Bind_NonNumericEmployeeNumber(t *testing.T) {
-	// Dial fails before numeric check, so use ldaps URL with no dial
-	a := &LDAPAuth{url: "ldaps://127.0.0.1:1", baseDN: "dc=workflows,dc=cl", useStartTLS: false}
-	if _, err := a.Bind("abc", "pw"); err == nil {
-		t.Fatal("expected error for non-numeric employee number")
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"localis-backend/internal/model/shared"
 )
 
 func testPool() *pgxpool.Pool {
@@ -28,8 +29,10 @@ func newPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func strPtr(s string) *string        { return &s }
-func intPtr(i int) *int              { return &i }
-func floatPtr(f float64) *float64    { return &f }
-func uuidPtr(u uuid.UUID) *uuid.UUID { return &u }
-func timePtr(t time.Time) *time.Time { return &t }
+func strPtr(s string) *string                                   { return &s }
+func intPtr(i int) *int                                         { return &i }
+func floatPtr(f float64) *float64                               { return &f }
+func uuidPtr(u uuid.UUID) *uuid.UUID                            { return &u }
+func timePtr(t time.Time) *time.Time                            { return &t }
+func photoStagePtr(s shared.PhotoStage) *shared.PhotoStage       { return &s }
+func resultPtr(r shared.MeasurementResult) *shared.MeasurementResult { return &r }

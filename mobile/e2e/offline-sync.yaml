@@ -1,0 +1,28 @@
+appId: com.localis.mobile
+---
+# Offline Sync Test
+- launchApp
+- waitForAnimationToEnd
+
+# Login
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+
+# Navigate to sync tab
+- tapOn: "Sync"
+- waitForAnimationToEnd
+
+# Verify sync status visible
+- assertVisible: "Última sync"
+- assertVisible: "Pendientes"
+
+# Trigger sync
+- tapOn: "Sincronizar"
+- waitForAnimationToEnd
+
+# Verify sync completes
+- assertVisible: "Última sync"

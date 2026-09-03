@@ -24,15 +24,6 @@ func TestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func NewMockLDAPAuth(t *testing.T) *auth.LDAPAuth {
-	t.Helper()
-	ldapAuth, err := auth.NewLDAPAuth("ldaps://localhost:636", "dc=test,dc=com", "password")
-	if err != nil {
-		t.Fatalf("failed to create LDAP auth: %v", err)
-	}
-	return ldapAuth
-}
-
 func NewMockJWTAuth(t *testing.T) *auth.JWTAuth {
 	t.Helper()
 	secret := "test-jwt-secret-" + uuid.New().String()

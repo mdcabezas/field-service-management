@@ -1,6 +1,7 @@
 package operationshandler
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -55,10 +56,16 @@ func (h *VisitPhotoHandler) Create(c *gin.Context) {
 	}
 	body.ID = uuid.New()
 	body.CreatedAt = time.Now()
+	// URL and ThumbnailURL are constructed by repository, not stored in DB
 	if err := h.repo.Create(c.Request.Context(), &body); err != nil {
 		handler.HandleServiceError(c, err)
 		return
 	}
+	// Return with computed URLs
+	urlStr := fmt.Sprintf("/api/photos/%s/file", body.ID.String())
+	thumbStr := fmt.Sprintf("/api/photos/%s/thumb", body.ID.String())
+	body.URL = &urlStr
+	body.ThumbnailURL = &thumbStr
 	handler.RespondJSON(c, http.StatusCreated, body)
 }
 

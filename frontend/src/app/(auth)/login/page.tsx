@@ -14,7 +14,7 @@ import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 
 const loginSchema = z.object({
-  employeeNumber: z.string().min(1, "Número de empleado requerido"),
+  email: z.string().min(1, "Email requerido").email("Email inválido"),
   password: z.string().min(1, "Contraseña requerida"),
 });
 
@@ -39,14 +39,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const tokens = await authApi.login(data.employeeNumber, data.password);
+      const tokens = await authApi.login(data.email, data.password);
 
       // Store tokens in Zustand + cookie (cookie needed for middleware)
       authApi.setAuthTokens(tokens.access_token, tokens.refresh_token);
 
       // Get user info (now with Authorization header)
       const userInfo = await authApi.me();
-      login(userInfo.employee_number, userInfo.role as "admin" | "manager" | "supervisor" | "technician");
+      login(userInfo.id, userInfo.email, userInfo.name, userInfo.role as "admin" | "manager" | "supervisor" | "technician");
 
       router.push("/");
     } catch (err) {
@@ -65,15 +65,15 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="employeeNumber">Número de Empleado</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="employeeNumber"
-                type="text"
-                placeholder="Ej: 1001"
-                {...register("employeeNumber")}
+                id="email"
+                type="email"
+                placeholder="usuario@ejemplo.com"
+                {...register("email")}
               />
-              {errors.employeeNumber && (
-                <p className="text-sm text-red-600">{errors.employeeNumber.message}</p>
+              {errors.email && (
+                <p className="text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
 

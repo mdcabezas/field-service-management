@@ -24,10 +24,14 @@ func NewChecklistTemplateRepo(pool *pgxpool.Pool) *ChecklistTemplateRepo {
 func (r *ChecklistTemplateRepo) GetByID(ctx context.Context, id uuid.UUID) (*inventory.ChecklistTemplate, error) {
 	var c inventory.ChecklistTemplate
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, description, visit_type, work_type, created_at
-		 FROM inventory.checklist_templates
-		 WHERE id = $1`, id,
-	).Scan(&c.ID, &c.Name, &c.Description, &c.VisitType, &c.WorkType, &c.CreatedAt)
+		`SELECT ct.id, ct.name, ct.description, ct.visit_type, ct.work_type, ct.created_at,
+		 wt.name as work_type_display,
+		 vt.name as visit_type_display
+		 FROM inventory.checklist_templates ct
+		 LEFT JOIN partners.partner_service_types wt ON ct.work_type = wt.id
+		 LEFT JOIN operations.visit_types vt ON ct.visit_type = vt.id
+		 WHERE ct.id = $1`, id,
+	).Scan(&c.ID, &c.Name, &c.Description, &c.VisitType, &c.WorkType, &c.CreatedAt, &c.WorkTypeDisplay, &c.VisitTypeDisplay)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "checklist_template", ID: id.String()}
 	}
@@ -45,9 +49,13 @@ func (r *ChecklistTemplateRepo) List(ctx context.Context, limit, offset int) (*r
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, description, visit_type, work_type, created_at
-		 FROM inventory.checklist_templates
-		 ORDER BY name
+		`SELECT ct.id, ct.name, ct.description, ct.visit_type, ct.work_type, ct.created_at,
+		 wt.name as work_type_display,
+		 vt.name as visit_type_display
+		 FROM inventory.checklist_templates ct
+		 LEFT JOIN partners.partner_service_types wt ON ct.work_type = wt.id
+		 LEFT JOIN operations.visit_types vt ON ct.visit_type = vt.id
+		 ORDER BY ct.name
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -58,7 +66,7 @@ func (r *ChecklistTemplateRepo) List(ctx context.Context, limit, offset int) (*r
 	items := make([]inventory.ChecklistTemplate, 0)
 	for rows.Next() {
 		var c inventory.ChecklistTemplate
-		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.VisitType, &c.WorkType, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.VisitType, &c.WorkType, &c.CreatedAt, &c.WorkTypeDisplay, &c.VisitTypeDisplay); err != nil {
 			return nil, fmt.Errorf("scan checklist template: %w", err)
 		}
 		items = append(items, c)

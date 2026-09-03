@@ -41,6 +41,22 @@ func (r *CoreUserRepo) GetByID(ctx context.Context, id string) (*core.User, erro
 	return &u, nil
 }
 
+func (r *CoreUserRepo) GetByEmail(ctx context.Context, email string) (*core.UserWithPassword, error) {
+	var u core.UserWithPassword
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, email, role, name, password_hash, created_at
+		 FROM core.users
+		 WHERE email = $1`, email,
+	).Scan(&u.ID, &u.Email, &u.Role, &u.Name, &u.PasswordHash, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &service.NotFoundError{Resource: "user", ID: email}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user by email: %w", err)
+	}
+	return &u, nil
+}
+
 func (r *CoreUserRepo) List(ctx context.Context, limit, offset int) (*repository.ListResult[core.User], error) {
 	var total int
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM core.users`).Scan(&total)

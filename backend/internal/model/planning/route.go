@@ -10,8 +10,9 @@ import (
 )
 
 type Route struct {
-	ID          uuid.UUID          `json:"id" db:"id" `
-	Type        string             `json:"type" db:"type"`
+	ID          uuid.UUID          `json:"id" db:"id"`
+	Type        uuid.UUID          `json:"type" db:"type"`
+	TypeCode    string             `json:"type_code" db:"type_code"`
 	TypeName    string             `json:"type_name" db:"type_name"`
 	Date        time.Time          `json:"date" db:"date" binding:"required"`
 	DailyPlanID *uuid.UUID         `json:"daily_plan_id,omitempty" db:"daily_plan_id"`

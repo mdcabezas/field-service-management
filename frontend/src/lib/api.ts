@@ -137,11 +137,11 @@ export async function apiFetch<T>(
 // ---- Auth-specific API calls ----
 
 export const authApi = {
-  login: (employeeNumber: string, password: string) =>
+  login: (email: string, password: string) =>
     apiFetch<{ access_token: string; refresh_token: string }>("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employee_number: employeeNumber, password }),
+      body: JSON.stringify({ email, password }),
       skipAuth: true,
     }),
 
@@ -168,7 +168,7 @@ export const authApi = {
     }),
 
   me: () =>
-    apiFetch<{ employee_number: string; role: string }>("/auth/me"),
+    apiFetch<{ id: string; email: string; name: string; role: string }>("/auth/me"),
 };
 
 // ---- Generic CRUD factory ----

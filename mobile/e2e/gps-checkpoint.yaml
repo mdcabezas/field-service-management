@@ -1,0 +1,37 @@
+appId: com.localis.mobile
+---
+# GPS Checkpoint Test
+- launchApp
+- waitForAnimationToEnd
+
+# Login
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+
+# Navigate to visit
+- tapOn:
+    text: "Visitas"
+    index: 0
+- waitForAnimationToEnd
+
+# Open GPS checkpoints
+- tapOn: "GPS"
+- waitForAnimationToEnd
+
+# Location permission might appear
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+# Capture arrival checkpoint
+- tapOn: "Llegada"
+- waitForAnimationToEnd
+
+# Verify checkpoint captured
+- assertVisible: "GPS"

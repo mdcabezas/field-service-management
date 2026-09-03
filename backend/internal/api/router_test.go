@@ -17,12 +17,8 @@ func testRouter(t *testing.T) *gin.Engine {
 	if err != nil {
 		t.Fatalf("NewJWTAuth: %v", err)
 	}
-	ldap, err := auth.NewLDAPAuth("ldaps://127.0.0.1:1", "dc=workflows,dc=cl", "pw")
-	if err != nil {
-		t.Fatalf("NewLDAPAuth: %v", err)
-	}
 	// pool nil is safe: no DB-backed route is exercised in these tests
-	r, cleanup := NewRouter(ldap, a, nil)
+	r, cleanup := NewRouter(a, nil, "/tmp/test-photos")
 	t.Cleanup(cleanup)
 	return r
 }
@@ -55,13 +51,13 @@ func TestRouter_Login_InvalidBody(t *testing.T) {
 	}
 }
 
-func TestRouter_Login_LDAPUnreachable(t *testing.T) {
+func TestRouter_Login_BadRequest(t *testing.T) {
 	r := testRouter(t)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"employee_number":"1001","password":"x"}`))
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"bad"}`))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
+	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d", w.Code)
 	}
 }

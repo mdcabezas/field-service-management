@@ -23,10 +23,11 @@ func NewVisitMaterialUsageRepo(pool *pgxpool.Pool) *VisitMaterialUsageRepo {
 func (r *VisitMaterialUsageRepo) GetByID(ctx context.Context, id uuid.UUID) (*operations.VisitMaterialUsage, error) {
 	var m operations.VisitMaterialUsage
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, visit_id, material_id, quantity, notes, created_at
-		 FROM operations.visit_material_usages
-		 WHERE id = $1`, id,
-	).Scan(&m.ID, &m.VisitID, &m.MaterialID, &m.Quantity, &m.Notes, &m.CreatedAt)
+		`SELECT vmu.id, vmu.visit_id, vmu.material_id, m.name, vmu.quantity, vmu.notes, vmu.created_at
+		 FROM operations.visit_material_usages vmu
+		 LEFT JOIN inventory.materials m ON m.id = vmu.material_id
+		 WHERE vmu.id = $1`, id,
+	).Scan(&m.ID, &m.VisitID, &m.MaterialID, &m.MaterialName, &m.Quantity, &m.Notes, &m.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "visit_material_usage", ID: id.String()}
 	}
@@ -38,10 +39,11 @@ func (r *VisitMaterialUsageRepo) GetByID(ctx context.Context, id uuid.UUID) (*op
 
 func (r *VisitMaterialUsageRepo) ListByVisit(ctx context.Context, visitID uuid.UUID) ([]operations.VisitMaterialUsage, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, visit_id, material_id, quantity, notes, created_at
-		 FROM operations.visit_material_usages
-		 WHERE visit_id = $1
-		 ORDER BY created_at`, visitID,
+		`SELECT vmu.id, vmu.visit_id, vmu.material_id, m.name, vmu.quantity, vmu.notes, vmu.created_at
+		 FROM operations.visit_material_usages vmu
+		 LEFT JOIN inventory.materials m ON m.id = vmu.material_id
+		 WHERE vmu.visit_id = $1
+		 ORDER BY vmu.created_at`, visitID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list visit material usages by visit: %w", err)
@@ -51,7 +53,7 @@ func (r *VisitMaterialUsageRepo) ListByVisit(ctx context.Context, visitID uuid.U
 	items := make([]operations.VisitMaterialUsage, 0)
 	for rows.Next() {
 		var m operations.VisitMaterialUsage
-		if err := rows.Scan(&m.ID, &m.VisitID, &m.MaterialID, &m.Quantity, &m.Notes, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.VisitID, &m.MaterialID, &m.MaterialName, &m.Quantity, &m.Notes, &m.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan visit material usage: %w", err)
 		}
 		items = append(items, m)

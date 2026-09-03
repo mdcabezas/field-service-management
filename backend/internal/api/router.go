@@ -14,6 +14,7 @@ import (
 	geocodinghandler "localis-backend/internal/handler/geocoding"
 	inventoryhandler "localis-backend/internal/handler/inventory"
 	notificationshandler "localis-backend/internal/handler/notifications"
+	mobilehandler "localis-backend/internal/handler/mobile"
 	operationshandler "localis-backend/internal/handler/operations"
 	partnershandler "localis-backend/internal/handler/partners"
 	planninghandler "localis-backend/internal/handler/planning"
@@ -35,7 +36,7 @@ import (
 	servicesplanning "localis-backend/internal/service/planning"
 )
 
-func NewRouter(ldapAuth *authpkg.LDAPAuth, jwtAuth *authpkg.JWTAuth, pool *pgxpool.Pool) (*gin.Engine, func()) {
+func NewRouter(jwtAuth *authpkg.JWTAuth, pool *pgxpool.Pool, photoStorageDir string) (*gin.Engine, func()) {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -50,11 +51,11 @@ func NewRouter(ldapAuth *authpkg.LDAPAuth, jwtAuth *authpkg.JWTAuth, pool *pgxpo
 
 	revocation := authpkg.NewRevocationService()
 	var cleanup func()
-	authHandler := authpkg.NewHandler(ldapAuth, jwtAuth, revocation)
+	userRepo := postgrescore.NewCoreUserRepo(pool)
+	authHandler := authpkg.NewHandler(userRepo, jwtAuth, revocation)
 	jwtMiddleware := authpkg.NewMiddleware(jwtAuth, revocation)
 
 	// Repositories
-	userRepo := postgrescore.NewCoreUserRepo(pool)
 	techRoleRepo := postgrescore.NewCoreTechRoleRepo(pool)
 	auditLogRepo := postgrescore.NewPlanAuditLogRepo(pool)
 	partnerRepo := postgrespartners.NewPartnerRepo(pool)
@@ -175,9 +176,10 @@ func NewRouter(ldapAuth *authpkg.LDAPAuth, jwtAuth *authpkg.JWTAuth, pool *pgxpo
 	checklistTmplH := inventoryhandler.NewChecklistTemplateHandler(checklistTmplRepo)
 	routeH := planninghandler.NewRouteHandler(routeRepo)
 	routeTypeH := planninghandler.NewRouteTypeHandler(routeTypeRepo)
-	ctmH := operationshandler.NewChecklistTemplateMaterialHandler(ctmRepo)
-	cttH := operationshandler.NewChecklistTemplateToolHandler(cttRepo)
-ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
+		ctmH := operationshandler.NewChecklistTemplateMaterialHandler(ctmRepo)
+		cttH := operationshandler.NewChecklistTemplateToolHandler(cttRepo)
+		ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
+		checklistStageH := operationshandler.NewChecklistStageHandler()
 		vcmH := operationshandler.NewVisitChecklistMaterialHandler(vcmRepo)
 		vctH := operationshandler.NewVisitChecklistToolHandler(vctRepo)
 		vceH := operationshandler.NewVisitChecklistEPPHandler(vceRepo)
@@ -195,6 +197,15 @@ ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
 		reportTmplH := sharedhandler.NewReportTemplateHandler(reportTmplRepo)
 		dailyPlanAssignmentH := planninghandler.NewDailyPlanAssignmentHandler(dailyPlanAssignmentRepo)
 		visitTypeH := operationshandler.NewVisitTypeHandler(visitTypeRepo)
+
+		// Mobile handlers
+		photoH := mobilehandler.NewPhotoHandler(photoStorageDir, pool)
+		syncH := mobilehandler.NewSyncHandler(pool)
+		configH := mobilehandler.NewConfigHandler()
+		gpsH := mobilehandler.NewGPSHandler()
+		auditH := mobilehandler.NewAuditHandler()
+		propertyHistoryH := mobilehandler.NewPropertyHistoryHandler()
+		mobilePartnerH := mobilehandler.NewPartnerHandler()
 
 	// Health
 	r.GET("/health", func(c *gin.Context) {
@@ -219,6 +230,10 @@ ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
 		refreshRateLimiter.Stop()
 		apiRateLimiter.Stop()
 	}
+
+	// Public photo serving endpoints (no auth required for direct file access)
+	r.GET("/api/photos/:id/file", photoH.ServeFile)
+	r.GET("/api/photos/:id/thumb", photoH.ServeThumb)
 
 	api := r.Group("/api")
 	api.Use(jwtMiddleware.Validate())
@@ -418,6 +433,15 @@ ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
 		api.POST("/checklist-template-epps", adminManager, ctaH.Create)
 		api.DELETE("/checklist-template-epps/:id", adminManager, ctaH.Delete)
 
+		// Checklist stages
+		ctStageRoutes := api.Group("/checklist-templates/:id/stages")
+		{
+			ctStageRoutes.GET("", checklistStageH.ListByTemplate)
+		}
+		api.POST("/checklist-stages", adminManager, checklistStageH.Create)
+		api.PUT("/checklist-stages/:id", adminManager, checklistStageH.Update)
+		api.DELETE("/checklist-stages/:id", adminManager, checklistStageH.Delete)
+
 		// ===== Planning =====
 		api.GET("/daily-plans", dailyPlanH.List)
 		api.GET("/daily-plans/:id", dailyPlanH.GetByID)
@@ -475,6 +499,7 @@ ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
 		api.POST("/visits", adminManagerSupervisor, visitH.Create)
 		api.PUT("/visits/:id", adminManagerSupervisor, visitH.Update)
 		api.DELETE("/visits/:id", adminManager, visitH.Delete)
+		api.POST("/visits/:id/reopen", adminManagerSupervisor, visitH.Reopen)
 
 		visitAssigns := api.Group("/visits/:id/assignments")
 		{
@@ -646,6 +671,21 @@ ctaH := operationshandler.NewChecklistTemplateEPPHandler(ctaRepo)
 		api.POST("/report-templates", adminOnly, reportTmplH.Create)
 		api.PUT("/report-templates/:id", adminOnly, reportTmplH.Update)
 		api.DELETE("/report-templates/:id", adminOnly, reportTmplH.Delete)
+
+		// ===== Mobile =====
+		api.POST("/mobile/photos", photoH.Upload)
+		api.POST("/mobile/sync", syncH.Push)
+		api.GET("/mobile/sync", syncH.Pull)
+		api.POST("/mobile/sync/retry", syncH.Retry)
+		api.GET("/mobile/config", configH.GetConfig)
+		api.PUT("/mobile/config", configH.UpdateConfig)
+		api.POST("/mobile/gps/waiver", gpsH.CreateWaiver)
+		api.GET("/mobile/gps/waivers", gpsH.ListWaivers)
+		api.DELETE("/mobile/gps/waivers/:id", gpsH.DeleteWaiver)
+		api.GET("/visits/:id/audit", auditH.GetByVisit)
+		api.GET("/properties/:id/history", propertyHistoryH.GetByProperty)
+		api.GET("/properties/:id/partners", mobilePartnerH.GetByProperty)
+		api.GET("/templates", mobilePartnerH.ListTemplates)
 	}
 
 	return r, cleanup

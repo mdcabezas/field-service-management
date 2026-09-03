@@ -129,7 +129,7 @@ func TestVisitMeasurementRepo_CRUD(t *testing.T) {
 		Type:            typeID,
 		Value:           floatPtr(10.5),
 		Unit:            strPtr("meters"),
-		Result:          shared.MeasurementResultApproved,
+		Result:          resultPtr(shared.MeasurementResultApproved),
 		MeasuringDevice: strPtr("Laser"),
 		Notes:           strPtr("Test notes"),
 		CreatedAt:       time.Now(),
@@ -154,7 +154,7 @@ func TestVisitMeasurementRepo_CRUD(t *testing.T) {
 	}
 	require.True(t, found)
 
-	item.Result = shared.MeasurementResultRejected
+	item.Result = resultPtr(shared.MeasurementResultRejected)
 	err = repo.Update(ctx, item.ID, item)
 	require.NoError(t, err)
 	updated, err := repo.GetByID(ctx, item.ID)

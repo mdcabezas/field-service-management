@@ -1,0 +1,12 @@
+appId: com.localis.mobile
+---
+# Login Flow Test
+- launchApp
+- waitForAnimationToEnd
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+- assertVisible: "Visitas"

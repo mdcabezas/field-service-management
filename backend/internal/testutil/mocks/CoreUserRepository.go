@@ -177,6 +177,65 @@ func (_c *CoreUserRepository_GetByID_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// GetByEmail provides a mock function with given fields: ctx, email
+func (_m *CoreUserRepository) GetByEmail(ctx context.Context, email string) (*core.UserWithPassword, error) {
+	ret := _m.Called(ctx, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetByEmail")
+	}
+
+	var r0 *core.UserWithPassword
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*core.UserWithPassword, error)); ok {
+		return rf(ctx, email)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *core.UserWithPassword); ok {
+		r0 = rf(ctx, email)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*core.UserWithPassword)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CoreUserRepository_GetByEmail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetByEmail'
+type CoreUserRepository_GetByEmail_Call struct {
+	*mock.Call
+}
+
+// GetByEmail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - email string
+func (_e *CoreUserRepository_Expecter) GetByEmail(ctx interface{}, email interface{}) *CoreUserRepository_GetByEmail_Call {
+	return &CoreUserRepository_GetByEmail_Call{Call: _e.mock.On("GetByEmail", ctx, email)}
+}
+
+func (_c *CoreUserRepository_GetByEmail_Call) Run(run func(ctx context.Context, email string)) *CoreUserRepository_GetByEmail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *CoreUserRepository_GetByEmail_Call) Return(_a0 *core.UserWithPassword, _a1 error) *CoreUserRepository_GetByEmail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *CoreUserRepository_GetByEmail_Call) RunAndReturn(run func(context.Context, string) (*core.UserWithPassword, error)) *CoreUserRepository_GetByEmail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // List provides a mock function with given fields: ctx, limit, offset
 func (_m *CoreUserRepository) List(ctx context.Context, limit int, offset int) (*repository.ListResult[core.User], error) {
 	ret := _m.Called(ctx, limit, offset)

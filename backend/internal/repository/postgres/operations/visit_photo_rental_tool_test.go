@@ -22,10 +22,10 @@ func TestVisitPhotoRepo_CRUD(t *testing.T) {
 	item := &operations.VisitPhoto{
 		ID:        uuid.New(),
 		VisitID:   visitID,
-		URL:       "http://example.com/photo.jpg",
+		URL:       strPtr("http://example.com/photo.jpg"),
 		Geom:      orb.Point{-70.65, -33.45},
 		Timestamp: time.Now(),
-		Stage:     shared.PhotoStageDiagnosis,
+		Stage:     photoStagePtr(shared.PhotoStageDiagnosis),
 		CreatedAt: time.Now(),
 	}
 	err := repo.Create(ctx, item)

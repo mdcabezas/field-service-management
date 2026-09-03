@@ -12,8 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { GeocodedAddress } from "@/types/api";
 
 const nearbySchema = z.object({
@@ -34,8 +37,9 @@ const columns: ColumnDef<GeocodedAddress, unknown>[] = [
     header: "Número",
   },
   {
-    accessorKey: "commune",
-    header: "Comuna",
+    accessorKey: "neighborhood",
+    header: "Barrio",
+    cell: ({ row }) => row.original.neighborhood || "-",
   },
   {
     accessorKey: "city",
@@ -46,17 +50,22 @@ const columns: ColumnDef<GeocodedAddress, unknown>[] = [
     header: "Región",
   },
   {
-    accessorKey: "lat",
+    id: "lat",
     header: "Lat",
+    accessorFn: (row) => row.geom?.[1] ?? null,
+    cell: ({ row }) => row.original.geom?.[1]?.toFixed(6) ?? "-",
   },
   {
-    accessorKey: "lng",
+    id: "lng",
     header: "Lng",
-  },];
+    accessorFn: (row) => row.geom?.[0] ?? null,
+    cell: ({ row }) => row.original.geom?.[0]?.toFixed(6) ?? "-",
+  },
+];
 
 export default function GeocodingPage() {
   const router = useRouter();
-  const { data: addresses, isLoading } = useGeocodedAddresses();
+  const { data: addresses, isLoading, error } = useGeocodedAddresses();
   const { user } = useAuthStore();
 
   const [nearbyParams, setNearbyParams] = useState<NearbyFormData | null>(null);
@@ -79,6 +88,10 @@ export default function GeocodingPage() {
     },
   });
 
+  useEffect(() => {
+    if (error) toast.error("Error al cargar direcciones");
+  }, [error]);
+
   const onNearbySubmit = (data: NearbyFormData) => {
     setNearbyParams(data);
   };
@@ -87,9 +100,8 @@ export default function GeocodingPage() {
     router.push(`/geocoding/${row.id}`);
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -107,8 +119,8 @@ export default function GeocodingPage() {
       <DataTable
         columns={columns}
         data={addresses || []}
-        searchPlaceholder="Buscar por calle o comuna..."
-        searchColumn="street"
+        searchPlaceholder="Buscar por calle, ciudad o región..."
+        searchColumn={["street", "city", "region", "neighborhood"]}
         onRowClick={handleRowClick}
       />
 

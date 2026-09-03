@@ -5,8 +5,11 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useReportTemplates } from "@/hooks/use-report-templates";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { ReportTemplate } from "@/types/api";
 
 const columns: ColumnDef<ReportTemplate, unknown>[] = [
@@ -27,20 +30,24 @@ const columns: ColumnDef<ReportTemplate, unknown>[] = [
         </span>
       );
     },
-  },];
+  },
+];
 
 export default function ReportTemplatesPage() {
   const router = useRouter();
-  const { data: templates, isLoading } = useReportTemplates();
+  const { data: templates, isLoading, error } = useReportTemplates();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (error) toast.error("Error al cargar plantillas de reportes");
+  }, [error]);
 
   const handleRowClick = (row: ReportTemplate) => {
     router.push(`/shared/report-templates/${row.id}`);
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">

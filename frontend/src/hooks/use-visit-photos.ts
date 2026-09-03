@@ -11,6 +11,9 @@ export function useVisitPhotos(visitId: string) {
     queryKey: VISIT_PHOTOS_KEY(visitId),
     queryFn: () => apiFetch<VisitPhoto[]>(`/api/visits/${visitId}/photos`),
     enabled: !!visitId,
+    retry: 2,
+    retryDelay: 1000,
+    refetchOnWindowFocus: true,
   });
 }
 

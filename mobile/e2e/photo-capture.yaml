@@ -1,0 +1,36 @@
+appId: com.localis.mobile
+---
+# Photo Capture Test
+- launchApp
+- waitForAnimationToEnd
+
+# Login
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+
+# Navigate to visit
+- tapOn:
+    text: "Visitas"
+    index: 0
+- waitForAnimationToEnd
+
+# Open photo capture
+- tapOn: "Fotos"
+- waitForAnimationToEnd
+
+# Camera permission might appear
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+# Tap capture button
+- tapOn:
+    type: "android.widget.Button"
+    index: 0
+- waitForAnimationToEnd

@@ -105,6 +105,44 @@ func (s *VisitService) CreateVisit(ctx context.Context, visit *operations.Visit)
 	return nil
 }
 
+func (s *VisitService) ResolvePartner(ctx context.Context, propertyID uuid.UUID) (*uuid.UUID, error) {
+	if s.vPool == nil {
+		return nil, nil
+	}
+
+	var partnerID uuid.UUID
+	err := s.vPool.QueryRow(ctx, `
+		SELECT cap.partner_id
+		FROM customers.customer_address_partners cap
+		JOIN customers.properties p ON p.customer_address_id = cap.customer_address_id
+		WHERE p.id = $1 AND cap.is_active = true
+		LIMIT 1
+	`, propertyID).Scan(&partnerID)
+
+	if err != nil {
+		return nil, nil
+	}
+	return &partnerID, nil
+}
+
+func (s *VisitService) ResolveSLA(ctx context.Context, partnerID uuid.UUID, workType string) (*uuid.UUID, error) {
+	if s.vPool == nil {
+		return nil, nil
+	}
+
+	var slaID uuid.UUID
+	err := s.vPool.QueryRow(ctx, `
+		SELECT id FROM partners.slas
+		WHERE partner_id = $1 AND work_type = $2 AND active = true
+		LIMIT 1
+	`, partnerID, workType).Scan(&slaID)
+
+	if err != nil {
+		return nil, nil
+	}
+	return &slaID, nil
+}
+
 // NOTE: NoTx fallback paths are for development/testing only.
 // In production, vPool is always non-nil (extracted from pgx-based repos),
 // so the Tx path is always taken. The NoTx paths have TOCTOU race conditions
@@ -419,6 +457,43 @@ func (s *VisitService) cancelVisitNoTx(ctx context.Context, visitID uuid.UUID, r
 	}
 
 	if err := s.audit.RecordChange(ctx, shared.AuditEntityTypeVisit, visitID, shared.AuditActionUpdate, oldVisit, visit, reason); err != nil {
+		slog.Warn("failed to record audit change", "entity", "visit", "id", visitID, "error", err)
+	}
+
+	return nil
+}
+
+func (s *VisitService) ReopenVisit(ctx context.Context, visitID uuid.UUID, reason string) error {
+	visit, err := s.visitRepo.GetByID(ctx, visitID)
+	if err != nil {
+		return service.HandleRepoGetByIDError(err, "visit", visitID.String())
+	}
+
+	if visit.Status != shared.VisitStatusCompleted {
+		return &service.ValidationError{Message: "can only reopen completed visits"}
+	}
+
+	if visit.CompletedAt != nil {
+		window := 24 * time.Hour
+		if time.Since(*visit.CompletedAt) > window {
+			return &service.ValidationError{Message: "reopen window expired (24h)"}
+		}
+	}
+
+	if reason == "" {
+		return &service.ValidationError{Message: "reason is required to reopen visit"}
+	}
+
+	oldVisit := *visit
+	visit.Status = shared.VisitStatusInProgress
+	visit.CompletedAt = nil
+	visit.UpdatedAt = time.Now()
+
+	if err := s.visitRepo.Update(ctx, visitID, visit); err != nil {
+		return fmt.Errorf("update visit: %w", err)
+	}
+
+	if err := s.audit.RecordChange(ctx, shared.AuditEntityTypeVisit, visitID, shared.AuditActionUpdate, oldVisit, visit, &reason); err != nil {
 		slog.Warn("failed to record audit change", "entity", "visit", "id", visitID, "error", err)
 	}
 

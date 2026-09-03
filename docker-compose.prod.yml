@@ -66,8 +66,11 @@ services:
       LDAP_SERVICE_PASSWORD: ${LDAP_SERVICE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgres://fsm_admin:${POSTGRES_PASSWORD}@postgres:5432/fsm_fsm?sslmode=disable"
+      PHOTO_STORAGE_DIR: "/mobile-photos"
     ports:
       - "8081:8080"
+    volumes:
+      - photos:/mobile-photos
     networks:
       - fsm-internal
     restart: unless-stopped
@@ -86,6 +89,8 @@ services:
 
 volumes:
   pgdata:
+    driver: local
+  photos:
     driver: local
   letsencrypt:
     driver: local

@@ -18,7 +18,7 @@ func TestRouteRepo_CRUD(t *testing.T) {
 
 	route := &planning.Route{
 		ID:          uuid.New(),
-		Type:        "7290d8d5-ab3a-4465-8bb9-e328e5363afb",
+		Type:        uuid.MustParse("7290d8d5-ab3a-4465-8bb9-e328e5363afb"),
 		Date:        time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour),
 		DailyPlanID: uuidPtr(uuid.MustParse("70000000-0000-0000-0000-000000000001")),
 		Status:      shared.RouteStatusScheduled,

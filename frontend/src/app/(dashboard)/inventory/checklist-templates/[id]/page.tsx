@@ -18,7 +18,7 @@ const schema = z.object({
   name: z.string().min(1, "Nombre es requerido"),
   description: z.string().optional(),
   visit_type: z.string().optional(),
-  work_type: z.string().min(1, "Tipo de trabajo es requerido"),
+  work_type: z.string().uuid().optional().or(z.literal("")),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -60,14 +60,20 @@ export default function ChecklistTemplateDetailPage() {
 
   const onSubmit = async (formData: FormData) => {
     try {
+      // Convert empty strings to null for UUID fields
+      const submitData = {
+        ...formData,
+        work_type: formData.work_type === "" ? null : formData.work_type,
+        visit_type: formData.visit_type === "" ? null : formData.visit_type,
+      };
       if (isNew) {
-        await createMutation.mutateAsync(formData);
+        await createMutation.mutateAsync(submitData);
         toast.success("Plantilla creada");
       } else {
-        await updateMutation.mutateAsync({ id, data: formData });
+        await updateMutation.mutateAsync({ id, data: submitData });
         toast.success("Plantilla actualizada");
       }
-      router.back();
+      router.push("/inventory/checklist-templates");
     } catch {
       toast.error("Error al guardar");
     }

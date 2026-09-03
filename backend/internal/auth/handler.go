@@ -1,17 +1,20 @@
 package auth
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
+	"localis-backend/internal/repository"
 )
 
 type LoginRequest struct {
-	EmployeeNumber string `json:"employee_number" binding:"required"`
-	Password       string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
 }
 
 type LoginResponse struct {
@@ -22,14 +25,14 @@ type LoginResponse struct {
 }
 
 type Handler struct {
-	ldapAuth   *LDAPAuth
+	userRepo   repository.CoreUserRepository
 	jwtAuth    *JWTAuth
 	revocation *RevocationService
 }
 
-func NewHandler(ldapAuth *LDAPAuth, jwtAuth *JWTAuth, revocation *RevocationService) *Handler {
+func NewHandler(userRepo repository.CoreUserRepository, jwtAuth *JWTAuth, revocation *RevocationService) *Handler {
 	return &Handler{
-		ldapAuth:   ldapAuth,
+		userRepo:   userRepo,
 		jwtAuth:    jwtAuth,
 		revocation: revocation,
 	}
@@ -40,26 +43,39 @@ const accessTokenTTLSeconds = 3600
 func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "employee_number and password required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password required"})
 		return
 	}
 
-	user, err := h.ldapAuth.Bind(req.EmployeeNumber, req.Password)
+	userWithPassword, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
-		slog.Warn("login failed", "error", err)
+		slog.Warn("login failed: user not found", "email", req.Email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
-	role := h.ldapAuth.ResolveRole(user)
+	if userWithPassword.PasswordHash == nil {
+		slog.Warn("login failed: no password set", "email", req.Email)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
 
-	accessToken, err := h.jwtAuth.GenerateToken(user.EmployeeNumber, role, TokenTypeAccess, 1*time.Hour)
+	if err := bcrypt.CompareHashAndPassword([]byte(*userWithPassword.PasswordHash), []byte(req.Password)); err != nil {
+		slog.Warn("login failed: wrong password", "email", req.Email)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	userID := userWithPassword.ID.String()
+	role := userWithPassword.Role
+
+	accessToken, err := h.jwtAuth.GenerateToken(userID, role, TokenTypeAccess, 1*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
 
-	refreshToken, err := h.jwtAuth.GenerateToken(user.EmployeeNumber, role, TokenTypeRefresh, 7*24*time.Hour)
+	refreshToken, err := h.jwtAuth.GenerateToken(userID, role, TokenTypeRefresh, 7*24*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
 		return
@@ -97,13 +113,13 @@ func (h *Handler) Refresh(c *gin.Context) {
 		h.revocation.Revoke(claims.ID, claims.ExpiresAt.Time)
 	}
 
-	accessToken, err := h.jwtAuth.GenerateToken(claims.EmployeeNumber, claims.Role, TokenTypeAccess, 1*time.Hour)
+	accessToken, err := h.jwtAuth.GenerateToken(claims.UserID, claims.Role, TokenTypeAccess, 1*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
 
-	newRefreshToken, err := h.jwtAuth.GenerateToken(claims.EmployeeNumber, claims.Role, TokenTypeRefresh, 7*24*time.Hour)
+	newRefreshToken, err := h.jwtAuth.GenerateToken(claims.UserID, claims.Role, TokenTypeRefresh, 7*24*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
 		return
@@ -129,9 +145,18 @@ func (h *Handler) Me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+
+	user, err := h.userRepo.GetByID(context.Background(), cl.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"employee_number": cl.EmployeeNumber,
-		"role":            cl.Role,
+		"id":    user.ID.String(),
+		"email": user.Email,
+		"name":  user.Name,
+		"role":  cl.Role,
 	})
 }
 

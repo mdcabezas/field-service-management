@@ -13,3 +13,8 @@ type User struct {
 	Name      string    `json:"name" db:"name" binding:"required,max=200"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
+
+type UserWithPassword struct {
+	User
+	PasswordHash *string `db:"password_hash"`
+}

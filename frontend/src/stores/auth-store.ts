@@ -12,14 +12,16 @@ interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   user: {
-    employeeNumber: string;
+    id: string;
+    email: string;
+    name: string;
     role: UserRole;
   } | null;
   setTokens: (accessToken: string, refreshToken: string) => void;
   clearTokens: () => void;
-  login: (employeeNumber: string, role: UserRole) => void;
+  login: (id: string, email: string, name: string, role: UserRole) => void;
   logout: () => void;
-  updateUser: (user: { employeeNumber: string; role: UserRole }) => void;
+  updateUser: (user: { id: string; email: string; name: string; role: UserRole }) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -36,10 +38,10 @@ export const useAuthStore = create<AuthState>()(
       clearTokens: () =>
         set({ accessToken: null, refreshToken: null }),
 
-      login: (employeeNumber: string, role: UserRole) =>
+      login: (id: string, email: string, name: string, role: UserRole) =>
         set({
           isAuthenticated: true,
-          user: { employeeNumber, role },
+          user: { id, email, name, role },
         }),
 
       logout: () =>

@@ -5,23 +5,39 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useMaintenanceRecords } from "@/hooks/use-maintenance-records";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { MaintenanceRecord } from "@/types/api";
 
 const columns: ColumnDef<MaintenanceRecord, unknown>[] = [
-  { accessorKey: "reference_id", header: "Referencia" },
+  { accessorKey: "reference_display", header: "Referencia" },
   { accessorKey: "type", header: "Tipo" },
   { accessorKey: "date", header: "Fecha" },
-  { accessorKey: "cost", header: "Costo" },
-  { accessorKey: "supplier", header: "Proveedor" },];
+  {
+    accessorKey: "cost",
+    header: "Costo",
+    cell: ({ row }) =>
+      row.original.cost != null
+        ? `$${row.original.cost.toLocaleString("es-CL")}`
+        : "-",
+  },
+  { accessorKey: "supplier", header: "Proveedor" },
+];
 
 export default function MaintenanceRecordsPage() {
   const router = useRouter();
-  const { data, isLoading } = useMaintenanceRecords();
+  const { data, isLoading, error } = useMaintenanceRecords();
   const { user } = useAuthStore();
 
-  if (isLoading) return <div className="font-mono">Cargando...</div>;
+  useEffect(() => {
+    if (error) toast.error("Error al cargar registros de mantención");
+  }, [error]);
+
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -38,8 +54,8 @@ export default function MaintenanceRecordsPage() {
       <DataTable
         columns={columns}
         data={data || []}
-        searchPlaceholder="Buscar registro..."
-        searchColumn="reference_id"
+        searchPlaceholder="Buscar por tipo o proveedor..."
+        searchColumn={["type", "supplier", "reference_id"]}
         onRowClick={(row) => router.push(`/inventory/maintenance-records/${row.id}`)}
       />
     </div>

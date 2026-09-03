@@ -440,3 +440,87 @@ func TestVisitService_List(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, got)
 }
+
+func TestReopenVisit_Success(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+	id := uuid.New()
+	now := time.Now()
+	visit := &operations.Visit{
+		ID:          id,
+		Status:      shared.VisitStatusCompleted,
+		CompletedAt: &now,
+	}
+	m.visitRepo.On("GetByID", ctx, id).Return(visit, nil).Once()
+	m.visitRepo.On("Update", ctx, id, mock.AnythingOfType("*operations.Visit")).Return(nil).Once()
+	expectAudit(m, 1)
+
+	err := m.service.ReopenVisit(ctx, id, "Missing documentation")
+	require.NoError(t, err)
+	require.Equal(t, shared.VisitStatusInProgress, visit.Status)
+	require.Nil(t, visit.CompletedAt)
+}
+
+func TestReopenVisit_NotCompleted(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+	id := uuid.New()
+	visit := &operations.Visit{
+		ID:     id,
+		Status: shared.VisitStatusInProgress,
+	}
+	m.visitRepo.On("GetByID", ctx, id).Return(visit, nil).Once()
+
+	err := m.service.ReopenVisit(ctx, id, "reason")
+	require.Error(t, err)
+	var ve *service.ValidationError
+	require.ErrorAs(t, err, &ve)
+}
+
+func TestReopenVisit_WindowExpired(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+	id := uuid.New()
+	completedAt := time.Now().Add(-25 * time.Hour)
+	visit := &operations.Visit{
+		ID:          id,
+		Status:      shared.VisitStatusCompleted,
+		CompletedAt: &completedAt,
+	}
+	m.visitRepo.On("GetByID", ctx, id).Return(visit, nil).Once()
+
+	err := m.service.ReopenVisit(ctx, id, "reason")
+	require.Error(t, err)
+	var ve *service.ValidationError
+	require.ErrorAs(t, err, &ve)
+}
+
+func TestReopenVisit_EmptyReason(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+	id := uuid.New()
+	now := time.Now()
+	visit := &operations.Visit{
+		ID:          id,
+		Status:      shared.VisitStatusCompleted,
+		CompletedAt: &now,
+	}
+	m.visitRepo.On("GetByID", ctx, id).Return(visit, nil).Once()
+
+	err := m.service.ReopenVisit(ctx, id, "")
+	require.Error(t, err)
+	var ve *service.ValidationError
+	require.ErrorAs(t, err, &ve)
+}
+
+func TestReopenVisit_NotFound(t *testing.T) {
+	ctx := context.Background()
+	m := newVisitService(t)
+	id := uuid.New()
+	m.visitRepo.On("GetByID", ctx, id).Return(nil, &service.NotFoundError{Resource: "visit", ID: id.String()}).Once()
+
+	err := m.service.ReopenVisit(ctx, id, "reason")
+	require.Error(t, err)
+	var nf *service.NotFoundError
+	require.ErrorAs(t, err, &nf)
+}

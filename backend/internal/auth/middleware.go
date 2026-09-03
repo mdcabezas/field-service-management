@@ -49,7 +49,7 @@ func (m *Middleware) Validate() gin.HandlerFunc {
 
 		c.Set(ClaimsKey, claims)
 		c.Request = c.Request.WithContext(
-			service.WithUserID(c.Request.Context(), claims.EmployeeNumber),
+			service.WithUserID(c.Request.Context(), claims.UserID),
 		)
 		c.Next()
 	}

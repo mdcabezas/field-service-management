@@ -23,6 +23,7 @@ type ListResult[T any] struct {
 
 type CoreUserRepository interface {
 	GetByID(ctx context.Context, id string) (*core.User, error)
+	GetByEmail(ctx context.Context, email string) (*core.UserWithPassword, error)
 	List(ctx context.Context, limit, offset int) (*ListResult[core.User], error)
 	Create(ctx context.Context, user *core.User) error
 	Update(ctx context.Context, id string, user *core.User) error

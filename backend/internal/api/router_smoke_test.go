@@ -14,10 +14,9 @@ func TestNewRouter(t *testing.T) {
 	pool := testutil.TestPool(t)
 	defer pool.Close()
 
-	ldapAuth := testutil.NewMockLDAPAuth(t)
 	jwtAuth := testutil.NewMockJWTAuth(t)
 
-	router, cleanup := NewRouter(ldapAuth, jwtAuth, pool)
+	router, cleanup := NewRouter(jwtAuth, pool, "/tmp/test-photos")
 	defer cleanup()
 
 	require.NotNil(t, router)
@@ -32,10 +31,9 @@ func TestNewRouter(t *testing.T) {
 }
 
 func TestRouter_WithNilPool(t *testing.T) {
-	ldapAuth := testutil.NewMockLDAPAuth(t)
 	jwtAuth := testutil.NewMockJWTAuth(t)
 
-	router, cleanup := NewRouter(ldapAuth, jwtAuth, nil)
+	router, cleanup := NewRouter(jwtAuth, nil, "/tmp/test-photos")
 	defer cleanup()
 
 	require.NotNil(t, router)
@@ -48,10 +46,9 @@ func TestRouter_WithNilPool(t *testing.T) {
 }
 
 func TestRouter_AuthRoutes(t *testing.T) {
-	ldapAuth := testutil.NewMockLDAPAuth(t)
 	jwtAuth := testutil.NewMockJWTAuth(t)
 
-	router, cleanup := NewRouter(ldapAuth, jwtAuth, nil)
+	router, cleanup := NewRouter(jwtAuth, nil, "/tmp/test-photos")
 	defer cleanup()
 
 	// Test login endpoint exists (400 for missing body is expected)

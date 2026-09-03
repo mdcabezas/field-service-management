@@ -45,6 +45,10 @@ func (r *VisitPhotoRepo) GetByID(ctx context.Context, id uuid.UUID) (*operations
 			ph.Geom = p
 		}
 	}
+	urlStr := fmt.Sprintf("/api/photos/%s/file", ph.ID.String())
+	thumbStr := fmt.Sprintf("/api/photos/%s/thumb", ph.ID.String())
+	ph.URL = &urlStr
+	ph.ThumbnailURL = &thumbStr
 	return &ph, nil
 }
 
@@ -76,6 +80,10 @@ func (r *VisitPhotoRepo) ListByVisit(ctx context.Context, visitID uuid.UUID) ([]
 				ph.Geom = p
 			}
 		}
+		urlStr := fmt.Sprintf("/api/photos/%s/file", ph.ID.String())
+		thumbStr := fmt.Sprintf("/api/photos/%s/thumb", ph.ID.String())
+		ph.URL = &urlStr
+		ph.ThumbnailURL = &thumbStr
 		items = append(items, ph)
 	}
 	if err := rows.Err(); err != nil {
@@ -87,9 +95,9 @@ func (r *VisitPhotoRepo) ListByVisit(ctx context.Context, visitID uuid.UUID) ([]
 
 func (r *VisitPhotoRepo) Create(ctx context.Context, ph *operations.VisitPhoto) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO operations.visit_photos (id, visit_id, checkpoint_id, url, geom, timestamp, stage, finding_type, created_at)
-		 VALUES ($1, $2, $3, $4, ST_GeomFromEWKB($5), $6, $7, $8, $9)`,
-		ph.ID, ph.VisitID, ph.CheckpointID, ph.URL, ewkb.Value(ph.Geom, 4326),
+		`INSERT INTO operations.visit_photos (id, visit_id, checkpoint_id, geom, timestamp, stage, finding_type, created_at)
+		 VALUES ($1, $2, $3, ST_GeomFromEWKB($4), $5, $6, $7, $8)`,
+		ph.ID, ph.VisitID, ph.CheckpointID, ewkb.Value(ph.Geom, 4326),
 		ph.Timestamp, ph.Stage, ph.FindingType, ph.CreatedAt,
 	)
 	if err != nil {

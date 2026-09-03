@@ -128,7 +128,7 @@ func (s *ReportService) FinalizeReport(ctx context.Context, reportID uuid.UUID) 
 				"type":   m.Type.String(),
 				"value":  m.Value,
 				"unit":   m.Unit,
-				"result": string(m.Result),
+				"result": func() string { if m.Result != nil { return string(*m.Result) }; return "" }(),
 			})
 		}
 		summary["measurements"] = measList

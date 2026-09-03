@@ -8,11 +8,11 @@ export function useAuth() {
   const router = useRouter();
   const { isAuthenticated, user, login, logout } = useAuthStore();
 
-  const handleLogin = async (employeeNumber: string, password: string) => {
-    await authApi.login(employeeNumber, password);
+  const handleLogin = async (email: string, password: string) => {
+    await authApi.login(email, password);
     const userInfo = await authApi.me();
-    login(userInfo.employee_number, userInfo.role as "admin" | "manager" | "supervisor" | "technician");
-    router.push("/dashboard");
+    login(userInfo.id, userInfo.email, userInfo.name, userInfo.role as "admin" | "manager" | "supervisor" | "technician");
+    router.push("/");
   };
 
   const handleLogout = async () => {

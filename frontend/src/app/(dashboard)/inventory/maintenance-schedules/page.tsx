@@ -5,26 +5,35 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useMaintenanceSchedules } from "@/hooks/use-maintenance-schedules";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { MaintenanceSchedule } from "@/types/api";
 
 const columns: ColumnDef<MaintenanceSchedule, unknown>[] = [
-  { accessorKey: "reference_id", header: "Referencia" },
+  { accessorKey: "reference_display", header: "Referencia" },
   { accessorKey: "type", header: "Tipo" },
   { accessorKey: "frequency_days", header: "Frecuencia (días)" },
   {
     accessorKey: "active",
     header: "Activo",
     cell: ({ row }) => <span className="uppercase">{row.original.active ? "Sí" : "No"}</span>,
-  },];
+  },
+];
 
 export default function MaintenanceSchedulesPage() {
   const router = useRouter();
-  const { data, isLoading } = useMaintenanceSchedules();
+  const { data, isLoading, error } = useMaintenanceSchedules();
   const { user } = useAuthStore();
 
-  if (isLoading) return <div className="font-mono">Cargando...</div>;
+  useEffect(() => {
+    if (error) toast.error("Error al cargar programación de mantención");
+  }, [error]);
+
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -41,8 +50,8 @@ export default function MaintenanceSchedulesPage() {
       <DataTable
         columns={columns}
         data={data || []}
-        searchPlaceholder="Buscar programación..."
-        searchColumn="type"
+        searchPlaceholder="Buscar por tipo o referencia..."
+        searchColumn={["type", "reference_id"]}
         onRowClick={(row) => router.push(`/inventory/maintenance-schedules/${row.id}`)}
       />
     </div>

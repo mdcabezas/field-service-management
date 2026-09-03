@@ -50,9 +50,9 @@ test.describe('Inventory/Checklist Templates Module', () => {
     // Use a valid work_type UUID from seed data
     await fillInput(page, 'work_type', WORK_TYPE_UUIDS[0]);
 
-    await submitForm(page, 'Crear');
-    await page.waitForURL((url) => url.pathname === '/inventory/checklist-templates', { timeout: 30000 });
+    await submitForm(page, ['Crear']);
     await waitForToast(page, 'Plantilla creada');
+    await page.waitForURL((url) => url.pathname === '/inventory/checklist-templates', { timeout: 15000 });
     await expectRowCount(page, 2);
   });
 
@@ -67,7 +67,7 @@ test.describe('Inventory/Checklist Templates Module', () => {
     await clickFirstRow(page);
 
     await fillInput(page, 'name', 'Updated Checklist Template Name');
-    await page.click('button[type="submit"]:has-text("Guardar")');
+    await submitForm(page, ['Guardar']);
     await page.waitForURL((url) => url.pathname === '/inventory/checklist-templates', { timeout: 30000 });
     await waitForToast(page, 'Plantilla actualizada');
   });
@@ -78,17 +78,16 @@ test.describe('Inventory/Checklist Templates Module', () => {
     await clickCreateButton(page, ['+ Crear']);
     await fillInput(page, 'name', 'To Delete Template');
     await fillInput(page, 'work_type', WORK_TYPE_UUIDS[1]);
-    await submitForm(page, 'Crear');
+    await submitForm(page, ['Crear']);
     await page.waitForURL((url) => url.pathname === '/inventory/checklist-templates', { timeout: 30000 });
+    await waitForToast(page, 'Plantilla creada');
 
     await clickFirstRow(page);
+    page.once('dialog', dialog => dialog.accept());
     await page.click('button:has-text("Eliminar")');
-    confirmDialog(page);
-    
-    // Wait for toast and then navigate back to list
+    await page.waitForURL((url) => url.pathname === '/inventory/checklist-templates', { timeout: 30000 });
     await waitForToast(page, 'Plantilla eliminada');
-    await page.goto('http://localhost:3000/inventory/checklist-templates');
-    await page.waitForLoadState('networkidle');
-    await verifyPageTitle(page, 'Plantillas de Checklist');
+    // After deletion, there should be the original 3 templates (or more)
+    await expectRowCount(page, 3);
   });
 });

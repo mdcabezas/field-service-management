@@ -24,12 +24,6 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	ldapAuth, err := auth.NewLDAPAuth(cfg.LDAPURL, cfg.LDAPBaseDN, cfg.LDAPServicePassword)
-	if err != nil {
-		slog.Error("failed to init LDAP", "error", err)
-		os.Exit(1)
-	}
-
 	jwtAuth, err := auth.NewJWTAuth(cfg.JWTSecret)
 	if err != nil {
 		slog.Error("failed to init JWT", "error", err)
@@ -46,7 +40,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	router, cleanup := api.NewRouter(ldapAuth, jwtAuth, pool)
+	router, cleanup := api.NewRouter(jwtAuth, pool, cfg.PhotoStorageDir)
 	defer cleanup()
 
 	srv := &http.Server{

@@ -5,10 +5,12 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useUsers, useDeleteUser } from "@/hooks/use-users";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
-import type { User } from "@/types/api";
 import { toast } from "sonner";
+import { useEffect } from "react";
+import type { User } from "@/types/api";
 
 const columns: ColumnDef<User, unknown>[] = [
   {
@@ -30,9 +32,13 @@ const columns: ColumnDef<User, unknown>[] = [
 
 export default function UsersPage() {
   const router = useRouter();
-  const { data: users, isLoading } = useUsers();
+  const { data: users, isLoading, error } = useUsers();
   const deleteUser = useDeleteUser();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (error) toast.error("Error al cargar usuarios");
+  }, [error]);
 
   const handleRowClick = (row: User) => {
     router.push(`/core/users/${row.id}`);
@@ -49,9 +55,8 @@ export default function UsersPage() {
     }
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -69,8 +74,8 @@ export default function UsersPage() {
       <DataTable
         columns={columns}
         data={users || []}
-        searchPlaceholder="Buscar por usuario..."
-        searchColumn="name"
+        searchPlaceholder="Buscar por nombre o email..."
+        searchColumn={["name", "email"]}
         onRowClick={handleRowClick}
         pageSize={5}
       />

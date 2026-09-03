@@ -24,10 +24,18 @@ func NewMaintenanceRecordRepo(pool *pgxpool.Pool) *MaintenanceRecordRepo {
 func (r *MaintenanceRecordRepo) GetByID(ctx context.Context, id uuid.UUID) (*inventory.MaintenanceRecord, error) {
 	var m inventory.MaintenanceRecord
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, type, reference_id, date, cost, supplier, description, next_date, created_at
-		 FROM inventory.maintenance_records
-		 WHERE id = $1`, id,
-	).Scan(&m.ID, &m.Type, &m.ReferenceID, &m.Date, &m.Cost, &m.Supplier, &m.Description, &m.NextDate, &m.CreatedAt)
+		`SELECT mr.id, mr.type, mr.reference_id, mr.date, mr.cost, mr.supplier, mr.description, mr.next_date, mr.created_at,
+		 CASE mr.type
+		   WHEN 'vehicle' THEN COALESCE(NULLIF(v.license_plate, ''), v.name)
+		   WHEN 'tool' THEN COALESCE(NULLIF(t.code, ''), t.name)
+		   WHEN 'equipment' THEN COALESCE(NULLIF(e.code, ''), e.name)
+		 END as reference_display
+		 FROM inventory.maintenance_records mr
+		 LEFT JOIN inventory.vehicles v ON mr.type = 'vehicle' AND mr.reference_id = v.id
+		 LEFT JOIN inventory.tools t ON mr.type = 'tool' AND mr.reference_id = t.id
+		 LEFT JOIN inventory.equipment e ON mr.type = 'equipment' AND mr.reference_id = e.id
+		 WHERE mr.id = $1`, id,
+	).Scan(&m.ID, &m.Type, &m.ReferenceID, &m.Date, &m.Cost, &m.Supplier, &m.Description, &m.NextDate, &m.CreatedAt, &m.ReferenceDisplay)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &service.NotFoundError{Resource: "maintenance_record", ID: id.String()}
 	}
@@ -45,9 +53,17 @@ func (r *MaintenanceRecordRepo) List(ctx context.Context, limit, offset int) (*r
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, type, reference_id, date, cost, supplier, description, next_date, created_at
-		 FROM inventory.maintenance_records
-		 ORDER BY date DESC
+		`SELECT mr.id, mr.type, mr.reference_id, mr.date, mr.cost, mr.supplier, mr.description, mr.next_date, mr.created_at,
+		 CASE mr.type
+		   WHEN 'vehicle' THEN COALESCE(NULLIF(v.license_plate, ''), v.name)
+		   WHEN 'tool' THEN COALESCE(NULLIF(t.code, ''), t.name)
+		   WHEN 'equipment' THEN COALESCE(NULLIF(e.code, ''), e.name)
+		 END as reference_display
+		 FROM inventory.maintenance_records mr
+		 LEFT JOIN inventory.vehicles v ON mr.type = 'vehicle' AND mr.reference_id = v.id
+		 LEFT JOIN inventory.tools t ON mr.type = 'tool' AND mr.reference_id = t.id
+		 LEFT JOIN inventory.equipment e ON mr.type = 'equipment' AND mr.reference_id = e.id
+		 ORDER BY mr.date DESC
 		 LIMIT $1 OFFSET $2`, limit, offset,
 	)
 	if err != nil {
@@ -58,7 +74,7 @@ func (r *MaintenanceRecordRepo) List(ctx context.Context, limit, offset int) (*r
 	items := make([]inventory.MaintenanceRecord, 0)
 	for rows.Next() {
 		var m inventory.MaintenanceRecord
-		if err := rows.Scan(&m.ID, &m.Type, &m.ReferenceID, &m.Date, &m.Cost, &m.Supplier, &m.Description, &m.NextDate, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Type, &m.ReferenceID, &m.Date, &m.Cost, &m.Supplier, &m.Description, &m.NextDate, &m.CreatedAt, &m.ReferenceDisplay); err != nil {
 			return nil, fmt.Errorf("scan maintenance record: %w", err)
 		}
 		items = append(items, m)

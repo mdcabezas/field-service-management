@@ -116,18 +116,3 @@ La tecnología es importante, pero la estrategia de implementación es clave par
 4. **Formar y acompañar:** Realiza webinarios, crea tutoriales y ofrece soporte continuo durante las primeras semanas.
 5. **Prueba piloto:** Comienza con un grupo pequeño de usuarios o una zona geográfica limitada para ajustar la herramienta.
 6. **Medir e iterar:** Usa los tableros de control para analizar el rendimiento y mejora continuamente los formularios basándote en el feedback real.
-
-## ¿Quieres inscribirte a **nuestro newsletter?** Haz clic acá
-
-Correo\*
-
-Nombre
-
-Apellido
-
-Form Type
-
-- Quiero recibir las últimas noticias, novedades y consejos de uso sobre Kizeo Forms. Puedo darme de baja en cualquier momento.
-\*
-
-Puedes consultar nuestra [política de privacidad aquí.](https://www.kizeo-forms.com/es/politica-de-privacidad/)

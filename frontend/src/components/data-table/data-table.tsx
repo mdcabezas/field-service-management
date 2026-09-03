@@ -9,9 +9,9 @@ import {
   flexRender,
   type ColumnDef,
   type SortingState,
-  type ColumnFiltersState,
+  type FilterFn,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 import {
   Table,
@@ -28,9 +28,22 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   searchPlaceholder?: string;
-  searchColumn?: string;
+  searchColumn?: string | string[];
   onRowClick?: (row: TData) => void;
   pageSize?: number;
+}
+
+function multiColumnFilter<TData>(
+  row: { original: TData },
+  columnIds: string[],
+  filterValue: string
+): boolean {
+  if (!filterValue) return true;
+  const lower = filterValue.toLowerCase();
+  return columnIds.some((id) => {
+    const value = (row.original as Record<string, unknown>)[id];
+    return value != null && String(value).toLowerCase().includes(lower);
+  });
 }
 
 export function DataTable<TData, TValue>({
@@ -42,11 +55,24 @@ export function DataTable<TData, TValue>({
   pageSize = 20,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize,
   });
+
+  const searchColumns = useMemo(() => {
+    if (!searchColumn) return [];
+    return Array.isArray(searchColumn) ? searchColumn : [searchColumn];
+  }, [searchColumn]);
+
+  const globalFilterFn: FilterFn<TData> = useCallback(
+    (row) => {
+      if (!globalFilter) return true;
+      return multiColumnFilter(row, searchColumns, globalFilter);
+    },
+    [globalFilter, searchColumns]
+  );
 
   const table = useReactTable({
     data,
@@ -55,12 +81,13 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: searchColumns.length > 0 ? globalFilterFn : undefined,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
     state: {
       sorting,
-      columnFilters,
+      globalFilter: searchColumns.length > 0 ? globalFilter : undefined,
       pagination,
     },
   });
@@ -71,10 +98,8 @@ export function DataTable<TData, TValue>({
         <div className="flex items-center gap-2">
           <Input
             placeholder={searchPlaceholder}
-            value={(table.getColumn(searchColumn)?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn(searchColumn)?.setFilterValue(event.target.value)
-            }
+            value={globalFilter}
+            onChange={(event) => setGlobalFilter(event.target.value)}
             className="max-w-sm"
           />
         </div>

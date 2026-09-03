@@ -6,24 +6,20 @@ import (
 )
 
 type Config struct {
-	ListenAddr          string
-	LDAPURL             string
-	LDAPBaseDN          string
-	LDAPServicePassword string
-	JWTSecret           string
-	DatabaseURL         string
-	CORSAllowedOrigins  string
+	ListenAddr         string
+	JWTSecret          string
+	DatabaseURL        string
+	CORSAllowedOrigins string
+	PhotoStorageDir    string
 }
 
 func Load() *Config {
 	return &Config{
-		ListenAddr:          getEnv("LISTEN_ADDR", ":8080"),
-		LDAPURL:             getEnv("LDAP_URL", "ldap://glauth:389"),
-		LDAPBaseDN:          getEnv("LDAP_BASE_DN", "dc=workflows,dc=cl"),
-		LDAPServicePassword: getEnvRequired("LDAP_SERVICE_PASSWORD"),
-		JWTSecret:           getEnvRequired("JWT_SECRET"),
-		DatabaseURL:         getEnvRequired("DATABASE_URL"),
-		CORSAllowedOrigins:  getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173"),
+		ListenAddr:         getEnv("LISTEN_ADDR", ":8080"),
+		JWTSecret:          getEnvRequired("JWT_SECRET"),
+		DatabaseURL:        getEnvRequired("DATABASE_URL"),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173"),
+		PhotoStorageDir:    getEnv("PHOTO_STORAGE_DIR", "/mobile-photos"),
 	}
 }
 

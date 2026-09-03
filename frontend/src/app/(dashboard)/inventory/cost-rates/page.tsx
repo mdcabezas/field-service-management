@@ -5,22 +5,38 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useCostRates } from "@/hooks/use-cost-rates";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { CostRate } from "@/types/api";
 
 const columns: ColumnDef<CostRate, unknown>[] = [
   { accessorKey: "type", header: "Tipo" },
-  { accessorKey: "value", header: "Valor" },
+  {
+    accessorKey: "value",
+    header: "Valor",
+    cell: ({ row }) =>
+      row.original.value != null
+        ? `$${row.original.value.toLocaleString("es-CL")}`
+        : "-",
+  },
   { accessorKey: "unit", header: "Unidad" },
-  { accessorKey: "valid_from", header: "Vigente desde" },];
+  { accessorKey: "valid_from", header: "Vigente desde" },
+];
 
 export default function CostRatesPage() {
   const router = useRouter();
-  const { data, isLoading } = useCostRates();
+  const { data, isLoading, error } = useCostRates();
   const { user } = useAuthStore();
 
-  if (isLoading) return <div className="font-mono">Cargando...</div>;
+  useEffect(() => {
+    if (error) toast.error("Error al cargar tarifas");
+  }, [error]);
+
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -37,8 +53,8 @@ export default function CostRatesPage() {
       <DataTable
         columns={columns}
         data={data || []}
-        searchPlaceholder="Buscar tarifa..."
-        searchColumn="type"
+        searchPlaceholder="Buscar por tipo o unidad..."
+        searchColumn={["type", "unit"]}
         onRowClick={(row) => router.push(`/inventory/cost-rates/${row.id}`)}
       />
     </div>

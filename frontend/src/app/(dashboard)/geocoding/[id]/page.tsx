@@ -80,6 +80,7 @@ export default function GeocodedAddressDetailPage() {
         data,
       });
       toast.success("Dirección actualizada");
+      router.push("/geocoding");
     } catch (error) {
       toast.error("Error al actualizar dirección");
     }

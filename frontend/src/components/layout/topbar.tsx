@@ -19,7 +19,7 @@ export function Topbar() {
       <div className="flex items-center gap-4">
         <div className="text-right">
           <p className="font-mono text-sm font-bold">
-            {user?.employeeNumber}
+            {user?.email}
           </p>
           <p className="font-mono text-xs text-gray-500 uppercase">
             {user?.role}

@@ -53,7 +53,10 @@ export async function waitForRedirect(page: Page, urlPattern: string, timeout = 
 export async function clickCreateButton(page: Page, buttonTexts: string[] = ['+ Crear', '+ Crear Usuario', '+ Crear Rol', '+ Crear Plan', '+ Crear Asignación', '+ Crear Ruta', '+ Crear Material', '+ Crear Herramienta', '+ Crear Vehículo', '+ Crear EPP', '+ Crear Alquiler', '+ Crear Tarifa', '+ Crear Registro', '+ Crear Programa', '+ Crear Cliente', '+ Crear Socio', '+ Crear Visita', '+ Crear Reporte', '+ Crear Seguimiento', '+ Crear Asignación', '+ Crear Plantilla', '+ Crear Dirección', '+ Crear Tarifa']) {
   for (const text of buttonTexts) {
     try {
-      await page.click(`button:has-text("${text}")`, { timeout: 2000 });
+      // Escape special characters for has-text
+      const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      await page.locator(`button:has-text("${escapedText}")`).waitFor({ state: 'visible', timeout: 10000 });
+      await page.click(`button:has-text("${escapedText}")`, { timeout: 2000 });
       await page.waitForLoadState('networkidle');
       return;
     } catch {

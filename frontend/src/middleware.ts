@@ -1,5 +1,5 @@
 // ============================================================================
-// Middleware — Route protection for authenticated routes
+// Middleware — Route protection for authenticated routes + API proxy
 // ============================================================================
 
 import { NextResponse } from "next/server";
@@ -21,8 +21,17 @@ const protectedPrefixes = [
 // Auth routes (redirect to / if already logged in)
 const authRoutes = ["/login"];
 
+// Backend URL for internal Docker network
+const BACKEND_URL = "http://go-backend:8080";
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Proxy photo requests to backend
+  if (pathname.startsWith("/api/photos/")) {
+    const backendUrl = new URL(pathname, BACKEND_URL);
+    return NextResponse.rewrite(backendUrl);
+  }
 
   // Check for access token in cookies
   const accessToken = request.cookies.get("access_token")?.value;
@@ -50,5 +59,18 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/core/:path*", "/partners/:path*", "/customers/:path*", "/inventory/:path*", "/planning/:path*", "/operations/:path*", "/notifications/:path*", "/geocoding/:path*", "/shared/:path*", "/login"],
+  matcher: [
+    "/",
+    "/core/:path*",
+    "/partners/:path*",
+    "/customers/:path*",
+    "/inventory/:path*",
+    "/planning/:path*",
+    "/operations/:path*",
+    "/notifications/:path*",
+    "/geocoding/:path*",
+    "/shared/:path*",
+    "/login",
+    "/api/photos/:path*",
+  ],
 };

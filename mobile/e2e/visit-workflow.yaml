@@ -1,0 +1,33 @@
+appId: com.localis.mobile
+---
+# Visit Workflow Test
+- launchApp
+- waitForAnimationToEnd
+
+# Login first
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+- assertVisible: "Visitas"
+
+# Tap on first visit
+- tapOn:
+    text: "Visitas"
+    index: 0
+- waitForAnimationToEnd
+
+# Should show visit detail
+- assertVisible: "Estado actual"
+- assertVisible: "Checklist"
+
+# Navigate to checklist
+- tapOn: "Checklist"
+- waitForAnimationToEnd
+- assertVisible: "Etapas"
+
+# Go back
+- pressKey: Back
+- waitForAnimationToEnd

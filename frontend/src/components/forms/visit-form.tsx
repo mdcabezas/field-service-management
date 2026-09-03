@@ -33,8 +33,8 @@ export function VisitForm() {
     resolver: zodResolver(visitSchema),
     defaultValues: {
       scheduled_at: "",
-      priority: "medium",
-      status: "pending",
+      priority: "normal",
+      status: "scheduled",
       type: "",
       billing_to: "partner",
       source: "portal",

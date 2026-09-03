@@ -5,8 +5,11 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useAllVisitSLATrackings } from "@/hooks/use-all-visit-sla-trackings";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { VisitSLATracking } from "@/types/api";
 
 const columns: ColumnDef<VisitSLATracking, unknown>[] = [
@@ -46,16 +49,19 @@ const columns: ColumnDef<VisitSLATracking, unknown>[] = [
 
 export default function SLATrackingsPage() {
   const router = useRouter();
-  const { data: slaTrackings, isLoading } = useAllVisitSLATrackings();
+  const { data: slaTrackings, isLoading, error } = useAllVisitSLATrackings();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (error) toast.error("Error al cargar seguimiento SLA");
+  }, [error]);
 
   const handleRowClick = (row: VisitSLATracking) => {
     router.push(`/operations/sla-trackings/${row.id}`);
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -74,7 +80,7 @@ export default function SLATrackingsPage() {
         columns={columns}
         data={slaTrackings || []}
         searchPlaceholder="Buscar por SLA o visita..."
-        searchColumn="sla_name"
+        searchColumn={["sla_name", "visit_label"]}
         onRowClick={handleRowClick}
       />
     </div>

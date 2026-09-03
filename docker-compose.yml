@@ -12,6 +12,7 @@ services:
       POSTGRES_DB: fsm_fsm
       POSTGRES_USER: fsm_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FSM_API_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -42,18 +43,6 @@ services:
       - fsm-internal
     restart: unless-stopped
 
-  glauth:
-    profiles: ["dev"]
-    image: glauth/glauth:latest
-    container_name: fsm-glauth
-    volumes:
-      - ./glauth/config.toml:/app/config/config.cfg:ro
-    ports:
-      - "389:3893"
-    networks:
-      - fsm-internal
-    restart: unless-stopped
-
   go-backend:
     profiles: ["dev"]
     build:
@@ -62,18 +51,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      glauth:
-        condition: service_started
     environment:
       LISTEN_ADDR: ":8080"
-      LDAP_URL: "ldap://glauth:3893"
-      LDAP_BASE_DN: "dc=workflows,dc=cl"
-      LDAP_SERVICE_PASSWORD: ${LDAP_SERVICE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgres://fsm_admin:${POSTGRES_PASSWORD}@postgres:5432/fsm_fsm?sslmode=disable"
       CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173"
+      PHOTO_STORAGE_DIR: "/mobile-photos"
     ports:
       - "8081:8080"
+    volumes:
+      - photos:/mobile-photos
     networks:
       - fsm-internal
     restart: unless-stopped
@@ -86,7 +73,7 @@ services:
     depends_on:
       - go-backend
     environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:8081"
+      NEXT_PUBLIC_API_URL: "http://go-backend:8080"
     ports:
       - "3000:3000"
     networks:
@@ -95,6 +82,8 @@ services:
 
 volumes:
   pgdata:
+    driver: local
+  photos:
     driver: local
 
 networks:

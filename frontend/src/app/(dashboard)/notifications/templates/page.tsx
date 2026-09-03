@@ -5,8 +5,11 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useNotificationTemplates } from "@/hooks/use-notification-templates";
 import { DataTable } from "@/components/data-table/data-table";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { canPerformAction } from "@/lib/rbac";
+import { toast } from "sonner";
+import { useEffect } from "react";
 import type { NotificationTemplate } from "@/types/api";
 
 const columns: ColumnDef<NotificationTemplate, unknown>[] = [
@@ -28,20 +31,24 @@ const columns: ColumnDef<NotificationTemplate, unknown>[] = [
     cell: ({ row }) => (
       <span className="uppercase">{row.original.active ? "Sí" : "No"}</span>
     ),
-  },];
+  },
+];
 
 export default function NotificationTemplatesPage() {
   const router = useRouter();
-  const { data: templates, isLoading } = useNotificationTemplates();
+  const { data: templates, isLoading, error } = useNotificationTemplates();
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    if (error) toast.error("Error al cargar plantillas de notificaciones");
+  }, [error]);
 
   const handleRowClick = (row: NotificationTemplate) => {
     router.push(`/notifications/templates/${row.id}`);
   };
 
-  if (isLoading) {
-    return <div className="font-mono">Cargando...</div>;
-  }
+  if (isLoading) return <TableSkeleton />;
+  if (error) return <div className="font-mono text-red-600">Error al cargar datos</div>;
 
   return (
     <div className="space-y-4">
@@ -59,8 +66,8 @@ export default function NotificationTemplatesPage() {
       <DataTable
         columns={columns}
         data={templates || []}
-        searchPlaceholder="Buscar por asunto..."
-        searchColumn="subject"
+        searchPlaceholder="Buscar por tipo, canal o asunto..."
+        searchColumn={["type", "channel", "subject"]}
         onRowClick={handleRowClick}
       />
     </div>

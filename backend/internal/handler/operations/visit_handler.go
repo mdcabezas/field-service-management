@@ -110,3 +110,26 @@ func (h *VisitHandler) Delete(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func (h *VisitHandler) Reopen(c *gin.Context) {
+	id, ok := handler.ParseUUID(c, "id")
+	if !ok {
+		handler.RespondError(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	var body struct {
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		handler.RespondError(c, http.StatusBadRequest, "reason is required")
+		return
+	}
+
+	if err := h.svc.ReopenVisit(c.Request.Context(), id, body.Reason); err != nil {
+		handler.HandleServiceError(c, err)
+		return
+	}
+
+	handler.RespondJSON(c, http.StatusOK, gin.H{"id": id, "status": "in_progress"})
+}

@@ -4,7 +4,7 @@
 
 // Auth
 export interface LoginRequest {
-  employee_number: string;
+  email: string;
   password: string;
 }
 
@@ -23,7 +23,9 @@ export interface RefreshResponse {
 }
 
 export interface UserInfo {
-  employee_number: string;
+  id: string;
+  email: string;
+  name: string;
   role: UserRole;
 }
 
@@ -311,6 +313,7 @@ export interface MaintenanceRecord {
   id: string;
   type: string;
   reference_id: string;
+  reference_display?: string;
   date: string;
   cost?: number;
   supplier?: string;
@@ -323,6 +326,7 @@ export interface MaintenanceSchedule {
   id: string;
   type: string;
   reference_id: string;
+  reference_display?: string;
   frequency_km?: number;
   frequency_days?: number;
   last_service_date?: string;
@@ -335,8 +339,10 @@ export interface ChecklistTemplate {
   id: string;
   name: string;
   description?: string;
-  visit_type?: string;
-  work_type: string;
+  visit_type?: string | null;
+  visit_type_display?: string;
+  work_type?: string | null;
+  work_type_display?: string;
   created_at: string;
 }
 
@@ -474,10 +480,21 @@ export interface VisitPhoto {
   visit_id: string;
   checkpoint_id?: string;
   url: string;
+  thumbnail_url?: string;
   geom?: string;
   timestamp?: string;
   stage?: string;
   finding_type?: string;
+  created_at: string;
+}
+
+export interface VisitMaterialUsage {
+  id: string;
+  visit_id: string;
+  material_id: string;
+  material_name?: string;
+  quantity: number;
+  notes?: string;
   created_at: string;
 }
 
@@ -601,6 +618,7 @@ export interface DailyLoadEPP {
 export interface Route {
   id: string;
   type: string;
+  type_code?: string;
   type_name?: string;
   date: string;
   daily_plan_id: string;

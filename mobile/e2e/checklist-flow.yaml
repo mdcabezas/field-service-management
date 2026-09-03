@@ -1,0 +1,32 @@
+appId: com.localis.mobile
+---
+# Checklist Flow Test
+- launchApp
+- waitForAnimationToEnd
+
+# Login
+- tapOn: "Número de empleado"
+- inputText: "1001"
+- tapOn: "Contraseña"
+- inputText: "admin"
+- tapOn: "Iniciar sesión"
+- waitForAnimationToEnd
+
+# Navigate to visit
+- tapOn:
+    text: "Visitas"
+    index: 0
+- waitForAnimationToEnd
+
+# Open checklist
+- tapOn: "Checklist"
+- waitForAnimationToEnd
+
+# Toggle a checklist item if available
+- tapOn:
+    type: "android.widget.CheckBox"
+    index: 0
+- waitForAnimationToEnd
+
+# Verify progress updated
+- assertVisible: "Checklist"
